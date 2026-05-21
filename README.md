@@ -24,8 +24,9 @@ chmod +x dist/index.js
 ```
 
 > **Note**: Make sure `~/.local/bin` is in your `$PATH`. Add to `~/.bashrc` or `~/.zshrc`:
+>
 > ```bash
-export PATH="$HOME/.local/bin:$PATH"
+> export PATH="$HOME/.local/bin:$PATH"
 > ```
 
 ### Via npm link

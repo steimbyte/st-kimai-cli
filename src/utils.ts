@@ -1,5 +1,121 @@
 import type { Timesheet, Project, Customer, Activity } from "./types.js";
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANSI COLOR STYLES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const styles = {
+	// Colors
+	cyan: (text: string) => `\x1b[36m${text}\x1b[0m`,
+	yellow: (text: string) => `\x1b[33m${text}\x1b[0m`,
+	green: (text: string) => `\x1b[32m${text}\x1b[0m`,
+	red: (text: string) => `\x1b[31m${text}\x1b[0m`,
+	magenta: (text: string) => `\x1b[35m${text}\x1b[0m`,
+	blue: (text: string) => `\x1b[34m${text}\x1b[0m`,
+	gray: (text: string) => `\x1b[90m${text}\x1b[0m`,
+	white: (text: string) => `\x1b[97m${text}\x1b[0m`,
+
+	// Bold
+	bold: (text: string) => `\x1b[1m${text}\x1b[0m`,
+	boldCyan: (text: string) => `\x1b[1m\x1b[36m${text}\x1b[0m`,
+	boldGreen: (text: string) => `\x1b[1m\x1b[32m${text}\x1b[0m`,
+	boldYellow: (text: string) => `\x1b[1m\x1b[33m${text}\x1b[0m`,
+
+	// Backgrounds
+	bgGreen: (text: string) => `\x1b[42m${text}\x1b[0m`,
+	bgYellow: (text: string) => `\x1b[43m${text}\x1b[0m`,
+
+	// Reset
+	reset: "\x1b[0m",
+};
+
+/**
+ * Create a styled header box
+ */
+export function styledHeader(title: string, subtitle?: string): string {
+	const width = 70;
+	const padding = Math.max(0, (width - title.length - 4) / 2);
+	const padStr = " ".repeat(padding);
+
+	let output = styles.boldCyan(`┌${"─".repeat(width)}┐\n`);
+	output += styles.boldCyan(`│${padStr} ${title} ${padStr}│\n`);
+	if (subtitle) {
+		const subPad = Math.max(0, (width - subtitle.length - 4) / 2);
+		output += `│${styles.gray(" ".repeat(subPad))} ${subtitle} ${styles.gray(" ".repeat(subPad))}│\n`;
+	}
+	output += styles.boldCyan(`└${"─".repeat(width)}┘`);
+	return output;
+}
+
+/**
+ * Create a styled info row
+ */
+export function styledRow(
+	label: string,
+	value: string,
+	color = styles.white,
+): string {
+	const labelWidth = 14;
+	return `  ${styles.bold(label.padEnd(labelWidth))}${color(value)}`;
+}
+
+/**
+ * Create a divider line
+ */
+export function styledDivider(color = styles.gray): string {
+	return color("─".repeat(70));
+}
+
+/**
+ * Styled success message
+ */
+export function styledSuccess(msg: string): string {
+	return `${styles.green("✓")} ${msg}`;
+}
+
+/**
+ * Styled error message
+ */
+export function styledError(msg: string): string {
+	return `${styles.red("✗")} ${msg}`;
+}
+
+/**
+ * Styled warning message
+ */
+export function styledWarning(msg: string): string {
+	return `${styles.yellow("⚠")} ${msg}`;
+}
+
+/**
+ * Styled info message
+ */
+export function styledInfo(msg: string): string {
+	return `${styles.cyan("➤")} ${msg}`;
+}
+
+/**
+ * Colorize duration based on length
+ */
+export function colorizeDuration(seconds: number | null): string {
+	if (!seconds) return styles.gray("-");
+	const hours = seconds / 3600;
+	if (hours >= 8) return styles.green(formatDuration(seconds));
+	if (hours >= 6) return styles.yellow(formatDuration(seconds));
+	return styles.red(formatDuration(seconds));
+}
+
+/**
+ * Colorize status (pause detection)
+ */
+export function colorizeStatus(hasPause: boolean, totalHours: number): string {
+	if (!hasPause) {
+		const hours = Math.round((totalHours / 3600) * 10) / 10;
+		return styles.red(`⚠ Keine Pause (${hours}h)`);
+	}
+	return styles.green(`✓ Pause vorhanden`);
+}
+
 /**
  * Get ISO calendar week number (KW in German)
  */
@@ -80,10 +196,21 @@ export function formatTimesheet(ts: Timesheet): string {
 	const date = formatDate(ts.begin);
 	const start = formatTime(ts.begin);
 	const end = formatTime(ts.end);
-	const duration = formatDuration(ts.duration);
+	const duration = ts.duration || 0;
 	const description = ts.description || "-";
 
-	return `${date} | ${start}-${end} | ${duration.padEnd(8)} | ${projectName.padEnd(30)} | ${activityName.padEnd(20)} | ${description}`;
+	// Colorize based on duration
+	const durationStr = colorizeDuration(duration);
+	const projectStr =
+		projectName.length > 28
+			? projectName.substring(0, 25) + "..."
+			: projectName.padEnd(28);
+	const activityStr =
+		activityName.length > 18
+			? activityName.substring(0, 15) + "..."
+			: activityName.padEnd(18);
+
+	return `${styles.gray(date)} │ ${styles.white(start)}-${styles.white(end)} │ ${durationStr.padEnd(8)} │ ${styles.cyan(projectStr)} │ ${styles.magenta(activityStr)} │ ${description}`;
 }
 
 export function getProjectName(project: number | Project | null): string {
@@ -115,10 +242,12 @@ export function getEntityId(
 
 export function printTimesheetHeader(): void {
 	console.log(
-		"Date       | Start-End  | Duration  | Project                       | Activity               | Description",
+		`${styles.gray("Date     | Start-End  | ")}${styles.bold("Duration")}${styles.gray(" | Project                       | Activity               | Description")}`,
 	);
 	console.log(
-		"-----------+------------+-----------+-------------------------------+------------------------+-------------------------------",
+		styles.gray(
+			"──────────+────────────+──────────+──────────────────────────────+────────────────────────+──────────────────────────────",
+		),
 	);
 }
 

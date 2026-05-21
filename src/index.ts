@@ -27,7 +27,15 @@ import {
 	parseDateRange,
 	parseTimeRange,
 	parseBreak,
-	calculateDuration,
+	styledHeader,
+	styledRow,
+	styledSuccess,
+	styledError as _styledError,
+	styledWarning as _styledWarning,
+	styledInfo as _styledInfo,
+	colorizeDuration,
+	colorizeStatus,
+	styles,
 } from "./utils.js";
 import type { ListTimesheetsOptions } from "./types.js";
 
@@ -309,16 +317,27 @@ program
 				tags,
 			});
 
-			console.log(`✅ Timesheet created (#${timesheet.id})`);
-			console.log(`   Project: ${getProjectName(timesheet.project)}`);
-			console.log(`   Activity: ${getActivityName(timesheet.activity)}`);
+			console.log(styledSuccess(`Timesheet #${timesheet.id} erstellt`));
+			console.log(
+				styledRow("Projekt:", getProjectName(timesheet.project), styles.cyan),
+			);
+			console.log(
+				styledRow(
+					"Aktivität:",
+					getActivityName(timesheet.activity),
+					styles.magenta,
+				),
+			);
 			if (timesheet.description) {
-				console.log(`   Description: ${timesheet.description}`);
+				console.log(styledRow("Beschreibung:", timesheet.description));
 			}
 			console.log(
-				`   Time: ${formatDateTime(timesheet.begin)} - ${formatDateTime(timesheet.end)}`,
+				styledRow(
+					"Zeit:",
+					`${formatTime(timesheet.begin)} - ${formatTime(timesheet.end)}`,
+				),
 			);
-			console.log(`   Duration: ${formatDuration(timesheet.duration)}`);
+			console.log(styledRow("Dauer:", colorizeDuration(timesheet.duration)));
 
 			// Check for gaps in the day
 			const dayDate = getDatePart(timesheet.begin);
@@ -937,8 +956,10 @@ program
 				console.log(JSON.stringify(timesheets, null, 2));
 			} else {
 				const kw = getCalendarWeek(monday);
-				console.log(`📅 KW ${kw} (${formatDate(begin)} - ${formatDate(end)})`);
-				console.log("═".repeat(50));
+				console.log(
+					styledHeader(`KW ${kw}`, `${formatDate(begin)} - ${formatDate(end)}`),
+				);
+				console.log("");
 				printTimesheets(timesheets);
 
 				if (timesheets.length > 0) {
@@ -946,7 +967,8 @@ program
 						(sum, ts) => sum + (ts.duration || 0),
 						0,
 					);
-					console.log(`\nTotal this week: ${formatDuration(totalDuration)}`);
+					console.log("");
+					console.log(styledRow("Gesamt:", colorizeDuration(totalDuration)));
 				}
 			}
 		} catch (error) {
@@ -1396,10 +1418,13 @@ program
 			const api = createApi();
 			const dates = parseDateRange(options.dates);
 			const timeRange = options.hours
-				? (parseTimeRange(options.hours) || { start: "08:00:00", end: "16:30:00" })
+				? parseTimeRange(options.hours) || {
+						start: "08:00:00",
+						end: "16:30:00",
+					}
 				: { start: "08:00:00", end: "16:30:00" };
 			const breakTime = options.break
-				? (parseBreak(options.break) || { start: "12:00:00", end: "12:30:00" })
+				? parseBreak(options.break) || { start: "12:00:00", end: "12:30:00" }
 				: { start: "12:00:00", end: "12:30:00" };
 
 			console.log(`📅 Creating entries for ${dates.length} days...`);
@@ -1451,8 +1476,13 @@ program
 				return;
 			}
 
-			console.log(`📅 Timesheets for ${formatDate(`${targetDate}T12:00:00`)}`);
-			console.log("═".repeat(50));
+			console.log(
+				styledHeader(
+					`📅 ${formatDate(`${targetDate}T12:00:00`)}`,
+					"Tagesübersicht",
+				),
+			);
+			console.log("");
 			printTimesheets(timesheets);
 
 			if (timesheets.length > 0) {
@@ -1460,15 +1490,18 @@ program
 					(sum, ts) => sum + (ts.duration || 0),
 					0,
 				);
-				console.log(`\nTotal: ${formatDuration(total)}`);
+				console.log("");
+				console.log(styledRow("Gesamt:", colorizeDuration(total)));
 				const gapCheck = checkDayGap(timesheets);
+				console.log(
+					styledRow("Status:", colorizeStatus(gapCheck.hasGap, total)),
+				);
 				if (gapCheck.hasGap) {
 					console.log(
-						`\n✅ Pause vorhanden: ${Math.round(gapCheck.gapMinutes!)} min`,
-					);
-				} else {
-					console.log(
-						`\n⚠️  Warnung: Keine Pause! (${Math.round((total / 3600) * 10) / 10}h total)`,
+						styledRow(
+							"Pause:",
+							`${Math.round(gapCheck.gapMinutes!)} min (${gapCheck.gapStart?.split("T")[1]?.substring(0, 5)} - ${gapCheck.gapEnd?.split("T")[1]?.substring(0, 5)})`,
+						),
 					);
 				}
 			}
@@ -1508,7 +1541,7 @@ program
 
 			for (const date of dates) {
 				try {
-					const newTs = await api.createTimesheet({
+					await api.createTimesheet({
 						project: projectId!,
 						activity: activityId!,
 						description: source.description || "",
