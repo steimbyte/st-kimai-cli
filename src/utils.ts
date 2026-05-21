@@ -5,7 +5,7 @@
 
 import type { Timesheet, Project, Customer, Activity } from "./types.js";
 import pc from "picocolors";
-import { LAYOUT, divider, pad as dsPad, COLORS } from "./design-system.js";
+import { LAYOUT, divider, pad as dsPad } from "./design-system.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COLOR STYLES (using picocolors with NO_COLOR/FORCE_COLOR support)
@@ -207,7 +207,7 @@ export function styledInfo(msg: string): string {
  * Colorize duration based on length
  */
 export function colorizeDuration(seconds: number | null): string {
-	if (!seconds) return styles.gray("-");
+	if (seconds === null || seconds === undefined) return styles.gray("-");
 	const hours = seconds / 3600;
 	if (hours >= 8) return styles.green(formatDuration(seconds));
 	if (hours >= 6) return styles.yellow(formatDuration(seconds));
@@ -519,22 +519,30 @@ export function checkDayGap(timesheets: Timesheet[]): {
 		return { hasGap: true, totalHours: 0 };
 	}
 
+	// Filter out entries with null/undefined begin (invalid state)
+	const validTimesheets = timesheets.filter(
+		(ts) => ts.begin !== null && ts.begin !== undefined,
+	);
+	if (validTimesheets.length === 0) {
+		return { hasGap: true, totalHours: 0 };
+	}
+
 	// Sort by start time
-	const sorted = [...timesheets].sort(
+	const sorted = [...validTimesheets].sort(
 		(a, b) => new Date(a.begin).getTime() - new Date(b.begin).getTime(),
 	);
 
 	const entries = sorted.map((ts) => ({
 		start: ts.begin,
-		end: ts.end || ts.begin,
-		duration: ts.duration || 0,
+		end: ts.end ?? ts.begin,
+		duration: ts.duration ?? 0,
 	}));
 
 	const totalHours = entries.reduce((sum, e) => sum + e.duration, 0);
 
 	// Check for any gap between consecutive entries
 	for (let i = 0; i < sorted.length - 1; i++) {
-		const currentEnd = sorted[i].end || sorted[i].begin;
+		const currentEnd = sorted[i].end ?? sorted[i].begin;
 		const nextStart = sorted[i + 1].begin;
 		const gapMs =
 			new Date(nextStart).getTime() - new Date(currentEnd).getTime();
@@ -637,12 +645,16 @@ export function parseDateRange(rangeStr: string): string[] {
 				return dates;
 			}
 
+			// Safety boundary: prevent infinite loops with max 366 days
+			const maxIterations = 366;
+			let iterations = 0;
 			for (
 				let current = new Date(startDate);
-				current <= endDate;
+				current <= endDate && iterations < maxIterations;
 				current.setDate(current.getDate() + 1)
 			) {
 				dates.push(current.toISOString().split("T")[0]);
+				iterations++;
 			}
 		}
 	} else if (rangeStr.includes(",")) {
@@ -684,6 +696,11 @@ export function parseTimeRange(
 		// Try simple format like "9-18"
 		const simple = timeStr.match(/^(\d{1,2})-(\d{1,2})$/);
 		if (simple) {
+			const startH = parseInt(simple[1], 10);
+			const endH = parseInt(simple[2], 10);
+			if (isNaN(startH) || isNaN(endH) || startH < 0 || startH > 23 || endH < 0 || endH > 23) {
+				return null;
+			}
 			return {
 				start: `${String(simple[1]).padStart(2, "0")}:00:00`,
 				end: `${String(simple[2]).padStart(2, "0")}:00:00`,
@@ -692,10 +709,24 @@ export function parseTimeRange(
 		return null;
 	}
 
-	const startHour = match[1].padStart(2, "0");
-	const startMin = (match[2] || "00").padStart(2, "0");
-	const endHour = (match[3] || match[1]).padStart(2, "0");
-	const endMin = (match[4] || "00").padStart(2, "0");
+	const startH = parseInt(match[1], 10);
+	const startM = match[2] ? parseInt(match[2], 10) : 0;
+	const endH = match[3] ? parseInt(match[3], 10) : startH;
+	const endM = match[4] ? parseInt(match[4], 10) : 0;
+
+	// Validate ranges
+	if (
+		isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM) ||
+		startH < 0 || startH > 23 || startM < 0 || startM > 59 ||
+		endH < 0 || endH > 23 || endM < 0 || endM > 59
+	) {
+		return null;
+	}
+
+	const startHour = String(startH).padStart(2, "0");
+	const startMin = String(startM).padStart(2, "0");
+	const endHour = String(endH).padStart(2, "0");
+	const endMin = String(endM).padStart(2, "0");
 
 	return {
 		start: `${startHour}:${startMin}:00`,
@@ -729,8 +760,25 @@ export function parseBreak(
  * Calculate total duration from time range
  */
 export function calculateDuration(startTime: string, endTime: string): number {
-	const [startH, startM] = startTime.split(":").map(Number);
-	const [endH, endM] = endTime.split(":").map(Number);
+	const startParts = startTime.split(":").map(Number);
+	const endParts = endTime.split(":").map(Number);
+	
+	if (startParts.length !== 3 || endParts.length !== 3) {
+		throw new Error(`Invalid time format: expected HH:MM:SS`);
+	}
+	
+	const [startH, startM, startS] = startParts;
+	const [endH, endM, endS] = endParts;
+	
+	if ([startH, startM, startS, endH, endM, endS].some(isNaN)) {
+		throw new Error(`Invalid time format: non-numeric values in "${startTime}" or "${endTime}"`);
+	}
+	
+	if (startH < 0 || startH > 23 || startM < 0 || startM > 59 || startS < 0 || startS > 59 ||
+		endH < 0 || endH > 23 || endM < 0 || endM > 59 || endS < 0 || endS > 59) {
+		throw new Error(`Invalid time range: values out of bounds`);
+	}
+	
 	const totalMinutes = endH * 60 + endM - (startH * 60 + startM);
 	return totalMinutes * 60; // Return seconds
 }

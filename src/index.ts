@@ -439,10 +439,11 @@ program
 		const loading = createLoading();
 		try {
 			const api = createApi();
+			const timesheetId = parseId(id, "Timesheet ID");
 			const timesheets = await withLoading("Fetching timesheet...", () =>
 				api.getTimesheets({ size: 500 }),
 			);
-			const ts = timesheets.find((t) => t.id === parseInt(id, 10));
+			const ts = timesheets.find((t) => t.id === timesheetId);
 
 			if (!ts) {
 				console.error(`Timesheet #${id} not found`);
@@ -484,7 +485,7 @@ program
 		> | null = null;
 		try {
 			const api = createApi();
-			const timesheetId = parseInt(id, 10);
+			const timesheetId = parseId(id, "Timesheet ID");
 
 			if (!options.yes) {
 				const readline = await import("readline");
@@ -511,9 +512,16 @@ program
 		} catch (error) {
 			if (rl) {
 				rl.close();
+				rl = null;
 			}
 			loading.fail("Failed to delete timesheet");
 			handleError(error);
+		} finally {
+			// DEFENSIVE: Ensure readline is always closed
+			if (rl) {
+				rl.close();
+				rl = null;
+			}
 		}
 	});
 
@@ -530,7 +538,7 @@ program
 		const loading = createLoading();
 		try {
 			const api = createApi();
-			const timesheetId = parseInt(id, 10);
+			const timesheetId = parseId(id, "Timesheet ID");
 
 			// Get current timesheet first
 			loading.start("Fetching timesheet...");
@@ -617,10 +625,11 @@ program
 		const loading = createLoading();
 		try {
 			const api = createApi();
+			const projectId = parseId(id, "Project ID");
 			const projects = await withLoading("Fetching project...", () =>
 				api.getProjects(true),
 			);
-			const project = projects.find((p) => p.id === parseInt(id, 10));
+			const project = projects.find((p) => p.id === projectId);
 
 			if (!project) {
 				console.error(`Project #${id} not found`);
@@ -698,10 +707,11 @@ program
 		const loading = createLoading();
 		try {
 			const api = createApi();
+			const activityId = parseId(id, "Activity ID");
 			const activities = await withLoading("Fetching activity...", () =>
 				api.getActivities(true),
 			);
-			const activity = activities.find((a) => a.id === parseInt(id, 10));
+			const activity = activities.find((a) => a.id === activityId);
 
 			if (!activity) {
 				console.error(`Activity #${id} not found`);
@@ -770,10 +780,11 @@ program
 		const loading = createLoading();
 		try {
 			const api = createApi();
+			const customerId = parseId(id, "Customer ID");
 			const customers = await withLoading("Fetching customer...", () =>
 				api.getCustomers(true),
 			);
-			const customer = customers.find((c) => c.id === parseInt(id, 10));
+			const customer = customers.find((c) => c.id === customerId);
 
 			if (!customer) {
 				console.error(`Customer #${id} not found`);
@@ -1517,8 +1528,8 @@ program
 						console.log(
 							`\n✅ Stopped! Duration: ${formatDuration(stopped.duration)}`,
 						);
-					} catch {
-						// Ignore
+					} catch (err) {
+						console.error(`⚠️  Failed to stop timer: ${(err as Error).message}`);
 					}
 					resolve();
 				});
