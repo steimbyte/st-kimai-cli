@@ -1,10 +1,21 @@
+/**
+ * Kimai API Type Definitions
+ * TypeScript interfaces for Kimai v1 API entities
+ */
+
 // Kimai API Types
 
+/**
+ * Authentication configuration
+ */
 export interface AuthConfig {
 	url: string;
 	apiKey: string;
 }
 
+/**
+ * Timesheet entry representing a work log
+ */
 export interface Timesheet {
 	id: number;
 	activity: number | Activity | null;
@@ -23,6 +34,9 @@ export interface Timesheet {
 	metaFields: MetaField[];
 }
 
+/**
+ * Project entity
+ */
 export interface Project {
 	id: number;
 	name: string;
@@ -39,6 +53,9 @@ export interface Project {
 	metaFields: MetaField[];
 }
 
+/**
+ * Customer entity
+ */
 export interface Customer {
 	id: number;
 	name: string;
@@ -54,6 +71,9 @@ export interface Customer {
 	metaFields: MetaField[];
 }
 
+/**
+ * Activity entity
+ */
 export interface Activity {
 	id: number;
 	name: string;
@@ -68,6 +88,9 @@ export interface Activity {
 	metaFields: MetaField[];
 }
 
+/**
+ * User entity
+ */
 export interface User {
 	id: number;
 	username: string;
@@ -82,22 +105,26 @@ export interface User {
 	initials: string;
 }
 
+/**
+ * Team entity
+ */
 export interface Team {
 	id: number;
 	name: string;
 	color: string;
 }
 
+/**
+ * Meta field attached to entities
+ */
 export interface MetaField {
 	name: string;
 	value: string;
 }
 
-export interface ApiError {
-	code: number;
-	message: string;
-}
-
+/**
+ * Options for creating a new timesheet
+ */
 export interface CreateTimesheetOptions {
 	project: number;
 	activity: number;
@@ -107,6 +134,9 @@ export interface CreateTimesheetOptions {
 	tags?: string[];
 }
 
+/**
+ * Query options for listing timesheets
+ */
 export interface ListTimesheetsOptions {
 	project?: number;
 	activity?: number;
@@ -121,17 +151,17 @@ export interface ListTimesheetsOptions {
 	size?: number;
 }
 
-export interface PaginationInfo {
-	page: number;
-	totalCount: number;
-	totalPages: number;
-}
-
+/**
+ * Plugin information
+ */
 export interface Plugin {
 	name: string;
 	version: string;
 }
 
+/**
+ * API version information
+ */
 export interface Version {
 	version: string;
 	versionId: number;

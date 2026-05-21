@@ -76,7 +76,8 @@ export function loadAuthConfig(configFile?: string): AuthConfig {
 		try {
 			config = JSON.parse(content) as AuthConfig;
 		} catch (error) {
-			throw new Error(`Invalid auth.json: ${(error as Error).message}`);
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			throw new Error(`Invalid auth.json: ${errorMessage}`);
 		}
 
 		if (!config.url || !config.apiKey) {
@@ -88,7 +89,8 @@ export function loadAuthConfig(configFile?: string): AuthConfig {
 
 		return config;
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+		const err = error as NodeJS.ErrnoException;
+		if (err.code === "ENOENT") {
 			throw new Error(`Config file not found: ${configPath}`);
 		}
 		// Preserve stack trace for debugging

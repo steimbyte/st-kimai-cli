@@ -27,6 +27,7 @@ import {
 	parseDateRange,
 	parseTimeRange,
 	parseBreak,
+	parseId,
 	sanitizeError,
 	formatError,
 	styledHeader,
@@ -39,6 +40,8 @@ import {
 	colorizeStatus,
 	styles,
 } from "./utils.js";
+import { createLoading, withLoading } from "./loading.js";
+import { divider, LAYOUT, pad } from "./design-system.js";
 import type { ListTimesheetsOptions } from "./types.js";
 
 const program = new Command();
@@ -127,20 +130,25 @@ program
 	.command("status")
 	.description("Show API status (ping, version, plugins)")
 	.action(async () => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
-			console.log("🔄 Pinging API...");
+			loading.start("Pinging API...");
 			const ping = await api.ping();
-			console.log(`✅ Server: ${ping.message}`);
+			loading.succeed(`Server: ${ping.message}`);
 
 			console.log("\n📋 Version:");
-			const version = await api.version();
+			const version = await withLoading("Fetching version...", () =>
+				api.version(),
+			);
 			console.log(`   Kimai ${version.version} (${version.versionId})`);
 			console.log(`   ${version.copyright}`);
 
 			console.log("\n🔌 Plugins:");
-			const plugins = await api.plugins();
+			const plugins = await withLoading("Loading plugins...", () =>
+				api.plugins(),
+			);
 			if (plugins.length === 0) {
 				console.log("   No plugins installed");
 			} else {
@@ -149,6 +157,7 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to connect");
 			handleError(error);
 		}
 	});
@@ -182,6 +191,7 @@ program
 	)
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
@@ -198,7 +208,9 @@ program
 				size: options.limit,
 			};
 
-			const timesheets = await api.getTimesheets(listOptions);
+			const timesheets = await withLoading("Fetching timesheets...", () =>
+				api.getTimesheets(listOptions),
+			);
 
 			// Filter by tag client-side if needed
 			let filtered = timesheets;
@@ -223,6 +235,7 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch timesheets");
 			handleError(error);
 		}
 	});
@@ -234,9 +247,12 @@ program
 	.description("Show current running timesheet(s)")
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
-			const active = await api.getActiveTimesheetsRaw();
+			const active = await withLoading("Fetching active timesheets...", () =>
+				api.getActiveTimesheetsRaw(),
+			);
 
 			if (active.length === 0) {
 				console.log("No running timesheet.");
@@ -253,6 +269,7 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch active timesheets");
 			handleError(error);
 		}
 	});
@@ -267,6 +284,7 @@ program
 	.option("-b, --begin <datetime>", "Start time (ISO format, default: now)")
 	.option("-t, --tags <tags>", "Comma-separated tags")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
@@ -274,13 +292,15 @@ program
 				? options.tags.split(",").map((t: string) => t.trim())
 				: undefined;
 
-			const timesheet = await api.createTimesheet({
-				project: options.project,
-				activity: options.activity,
-				description: options.description || "Working",
-				begin: options.begin || nowIso(),
-				tags,
-			});
+			const timesheet = await withLoading("Starting timesheet...", () =>
+				api.createTimesheet({
+					project: options.project,
+					activity: options.activity,
+					description: options.description || "Working",
+					begin: options.begin || nowIso(),
+					tags,
+				}),
+			);
 
 			console.log(`✅ Timesheet started (#${timesheet.id})`);
 			console.log(`   Project: ${getProjectName(timesheet.project)}`);
@@ -290,6 +310,7 @@ program
 			}
 			console.log(`   Started: ${formatDateTime(timesheet.begin)}`);
 		} catch (error) {
+			loading.fail("Failed to start timesheet");
 			handleError(error);
 		}
 	});
@@ -305,6 +326,7 @@ program
 	.option("-e, --end <datetime>", "End time (ISO format)")
 	.option("-t, --tags <tags>", "Comma-separated tags")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
@@ -312,40 +334,43 @@ program
 				? options.tags.split(",").map((t: string) => t.trim())
 				: undefined;
 
-			const timesheet = await api.createTimesheet({
-				project: options.project,
-				activity: options.activity,
-				description: options.description,
-				begin: options.begin || nowIso(),
-				end: options.end,
-				tags,
-			});
+			const timesheet = await withLoading("Creating timesheet...", () =>
+				api.createTimesheet({
+					project: options.project,
+					activity: options.activity,
+					description: options.description,
+					begin: options.begin || nowIso(),
+					end: options.end,
+					tags,
+				}),
+			);
 
-			console.log(styledSuccess(`Timesheet #${timesheet.id} created`));
+			console.log(styledSuccess(`Timesheet #${timesheet.id} erstellt`));
 			console.log(
-				styledRow("Project:", getProjectName(timesheet.project), styles.cyan),
+				styledRow("Projekt:", getProjectName(timesheet.project), styles.cyan),
 			);
 			console.log(
 				styledRow(
-					"Activity:",
+					"Aktivität:",
 					getActivityName(timesheet.activity),
 					styles.magenta,
 				),
 			);
 			if (timesheet.description) {
-				console.log(styledRow("Description:", timesheet.description));
+				console.log(styledRow("Beschreibung:", timesheet.description));
 			}
 			console.log(
 				styledRow(
-					"Time:",
+					"Zeit:",
 					`${formatTime(timesheet.begin)} - ${formatTime(timesheet.end)}`,
 				),
 			);
-			console.log(styledRow("Duration:", colorizeDuration(timesheet.duration)));
+			console.log(styledRow("Dauer:", colorizeDuration(timesheet.duration)));
 
 			// Check for gaps in the day
 			const dayDate = getDatePart(timesheet.begin);
 			if (dayDate) {
+				loading.update("Checking for gaps...");
 				const dayTimesheets = await api.getTimesheets({
 					begin: `${dayDate}T00:00:00`,
 					end: `${dayDate}T23:59:59`,
@@ -354,11 +379,12 @@ program
 				const gapCheck = checkDayGap(dayTimesheets);
 				if (gapCheck.hasGap && gapCheck.gapMinutes) {
 					console.log(
-						`\nℹ️  Gap detected: ${Math.round(gapCheck.gapMinutes)} min (${gapCheck.gapStart?.split("T")[1]?.substring(0, 5)} - ${gapCheck.gapEnd?.split("T")[1]?.substring(0, 5)})`,
+						`\nℹ️  Lücke erkannt: ${Math.round(gapCheck.gapMinutes)} min (${gapCheck.gapStart?.split("T")[1]?.substring(0, 5)} - ${gapCheck.gapEnd?.split("T")[1]?.substring(0, 5)})`,
 					);
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to create timesheet");
 			handleError(error);
 		}
 	});
@@ -371,20 +397,22 @@ program
 	.option("-t, --time <datetime>", "End time (ISO format, default: now)")
 	.option("-y, --yes", "Skip confirmation")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 			const endTime = options.time || nowIso();
 
 			if (options.id) {
 				// Stop specific timesheet
-				const timesheet = await api.stopTimesheet(
-					parseInt(options.id, 10),
-					endTime,
+				const stopId = parseId(options.id, "Timesheet ID");
+				const timesheet = await withLoading("Stopping timesheet...", () =>
+					api.stopTimesheet(stopId, endTime),
 				);
 				console.log(`✅ Timesheet #${options.id} stopped`);
 				console.log(`   Duration: ${formatDuration(timesheet.duration)}`);
 			} else {
 				// Find and stop all running timesheets
+				loading.start("Finding active timesheets...");
 				const active = await api.getActiveTimesheetsRaw();
 				if (active.length === 0) {
 					console.log("No running timesheet found.");
@@ -397,6 +425,7 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to stop timesheet");
 			handleError(error);
 		}
 	});
@@ -407,9 +436,12 @@ program
 	.description("Get details of a specific timesheet")
 	.option("--json", "Output as JSON")
 	.action(async (id: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
-			const timesheets = await api.getTimesheets({ size: 500 });
+			const timesheets = await withLoading("Fetching timesheet...", () =>
+				api.getTimesheets({ size: 500 }),
+			);
 			const ts = timesheets.find((t) => t.id === parseInt(id, 10));
 
 			if (!ts) {
@@ -421,7 +453,7 @@ program
 				console.log(JSON.stringify(ts, null, 2));
 			} else {
 				console.log(`Timesheet #${ts.id}`);
-				console.log("─".repeat(50));
+				console.log(divider());
 				console.log(`Project:   ${getProjectName(ts.project)}`);
 				console.log(`Activity:  ${getActivityName(ts.activity)}`);
 				console.log(`Start:     ${formatDateTime(ts.begin)}`);
@@ -434,6 +466,7 @@ program
 				console.log(`Exported: ${ts.exported ? "Yes" : "No"}`);
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch timesheet");
 			handleError(error);
 		}
 	});
@@ -445,7 +478,10 @@ program
 	.description("Delete a timesheet by ID")
 	.option("-y, --yes", "Skip confirmation")
 	.action(async (id: string, options) => {
-		let rl: Awaited<ReturnType<typeof import("readline").createInterface>> | null = null;
+		const loading = createLoading();
+		let rl: Awaited<
+			ReturnType<typeof import("readline").createInterface>
+		> | null = null;
 		try {
 			const api = createApi();
 			const timesheetId = parseInt(id, 10);
@@ -468,12 +504,15 @@ program
 				}
 			}
 
-			await api.deleteTimesheet(timesheetId);
+			await withLoading("Deleting timesheet...", () =>
+				api.deleteTimesheet(timesheetId),
+			);
 			console.log(`✅ Timesheet #${id} deleted.`);
 		} catch (error) {
 			if (rl) {
 				rl.close();
 			}
+			loading.fail("Failed to delete timesheet");
 			handleError(error);
 		}
 	});
@@ -488,11 +527,13 @@ program
 	.option("-b, --begin <datetime>", "New start time")
 	.option("-e, --end <datetime>", "New end time")
 	.action(async (id: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 			const timesheetId = parseInt(id, 10);
 
 			// Get current timesheet first
+			loading.start("Fetching timesheet...");
 			const timesheets = await api.getTimesheets({ size: 500 });
 			const current = timesheets.find((t) => t.id === timesheetId);
 
@@ -517,13 +558,16 @@ program
 				return;
 			}
 
-			const updated = await api.updateTimesheet(timesheetId, updates);
+			const updated = await withLoading("Updating timesheet...", () =>
+				api.updateTimesheet(timesheetId, updates),
+			);
 			console.log(`✅ Timesheet #${id} updated`);
 			console.log(`   Project: ${getProjectName(updated.project)}`);
 			console.log(`   Activity: ${getActivityName(updated.activity)}`);
 			console.log(`   Description: ${updated.description || "-"}`);
 			console.log(`   Duration: ${formatDuration(updated.duration)}`);
 		} catch (error) {
+			loading.fail("Failed to update timesheet");
 			handleError(error);
 		}
 	});
@@ -540,9 +584,12 @@ program
 	.option("--full", "Include full details")
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
-			let projects = await api.getProjects(options.full);
+			let projects = await withLoading("Fetching projects...", () =>
+				api.getProjects(options.full),
+			);
 
 			// Filter visible if requested
 			if (options.visible) {
@@ -556,6 +603,7 @@ program
 				console.log(`\nTotal: ${projects.length} projects`);
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch projects");
 			handleError(error);
 		}
 	});
@@ -566,9 +614,12 @@ program
 	.description("Get details of a specific project")
 	.option("--json", "Output as JSON")
 	.action(async (id: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
-			const projects = await api.getProjects(true);
+			const projects = await withLoading("Fetching project...", () =>
+				api.getProjects(true),
+			);
 			const project = projects.find((p) => p.id === parseInt(id, 10));
 
 			if (!project) {
@@ -580,7 +631,7 @@ program
 				console.log(JSON.stringify(project, null, 2));
 			} else {
 				console.log(`Project #${project.id}: ${project.name}`);
-				console.log("─".repeat(50));
+				console.log(divider());
 				console.log(
 					`Customer: ${typeof project.customer === "object" ? (project.customer as { name: string })?.name : `#${project.customer}`}`,
 				);
@@ -594,6 +645,7 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch project");
 			handleError(error);
 		}
 	});
@@ -611,9 +663,12 @@ program
 	.option("--full", "Include full details")
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
-			let activities = await api.getActivities(options.full);
+			let activities = await withLoading("Fetching activities...", () =>
+				api.getActivities(options.full),
+			);
 
 			if (options.visible) {
 				activities = activities.filter((a) => a.visible);
@@ -629,6 +684,7 @@ program
 				console.log(`\nTotal: ${activities.length} activities`);
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch activities");
 			handleError(error);
 		}
 	});
@@ -639,9 +695,12 @@ program
 	.description("Get details of a specific activity")
 	.option("--json", "Output as JSON")
 	.action(async (id: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
-			const activities = await api.getActivities(true);
+			const activities = await withLoading("Fetching activity...", () =>
+				api.getActivities(true),
+			);
 			const activity = activities.find((a) => a.id === parseInt(id, 10));
 
 			if (!activity) {
@@ -653,7 +712,7 @@ program
 				console.log(JSON.stringify(activity, null, 2));
 			} else {
 				console.log(`Activity #${activity.id}: ${activity.name}`);
-				console.log("─".repeat(50));
+				console.log(divider());
 				console.log(`Visible: ${activity.visible ? "Yes" : "No"}`);
 				console.log(`Billable: ${activity.billable ? "Yes" : "No"}`);
 				if (activity.project && typeof activity.project !== "number") {
@@ -662,6 +721,7 @@ program
 				if (activity.comment) console.log(`Comment: ${activity.comment}`);
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch activity");
 			handleError(error);
 		}
 	});
@@ -678,9 +738,12 @@ program
 	.option("--full", "Include full details")
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
-			let customers = await api.getCustomers(options.full);
+			let customers = await withLoading("Fetching customers...", () =>
+				api.getCustomers(options.full),
+			);
 
 			if (options.visible) {
 				customers = customers.filter((c) => c.visible);
@@ -693,6 +756,7 @@ program
 				console.log(`\nTotal: ${customers.length} customers`);
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch customers");
 			handleError(error);
 		}
 	});
@@ -703,9 +767,12 @@ program
 	.description("Get details of a specific customer")
 	.option("--json", "Output as JSON")
 	.action(async (id: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
-			const customers = await api.getCustomers(true);
+			const customers = await withLoading("Fetching customer...", () =>
+				api.getCustomers(true),
+			);
 			const customer = customers.find((c) => c.id === parseInt(id, 10));
 
 			if (!customer) {
@@ -717,7 +784,7 @@ program
 				console.log(JSON.stringify(customer, null, 2));
 			} else {
 				console.log(`Customer #${customer.id}: ${customer.name}`);
-				console.log("─".repeat(50));
+				console.log(divider());
 				console.log(`Visible: ${customer.visible ? "Yes" : "No"}`);
 				console.log(`Billable: ${customer.billable ? "Yes" : "No"}`);
 				console.log(`Country: ${customer.country}`);
@@ -727,6 +794,7 @@ program
 				if (customer.comment) console.log(`Comment: ${customer.comment}`);
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch customer");
 			handleError(error);
 		}
 	});
@@ -740,9 +808,10 @@ program
 	.description("List all tags")
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
-			const tags = await api.getTags();
+			const tags = await withLoading("Fetching tags...", () => api.getTags());
 
 			if (options.json) {
 				console.log(JSON.stringify(tags, null, 2));
@@ -751,6 +820,7 @@ program
 				console.log(`\nTotal: ${tags.length} tags`);
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch tags");
 			handleError(error);
 		}
 	});
@@ -763,6 +833,7 @@ program
 	.option("-e, --end <date>", "End date (YYYY-MM-DD)")
 	.option("--json", "Output as JSON")
 	.action(async (tag: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
@@ -772,7 +843,9 @@ program
 				size: 500,
 			};
 
-			const timesheets = await api.getTimesheets(listOptions);
+			const timesheets = await withLoading("Fetching timesheets...", () =>
+				api.getTimesheets(listOptions),
+			);
 			const tagged = timesheets.filter(
 				(ts) => ts.tags && ts.tags.includes(tag),
 			);
@@ -793,13 +866,14 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch tagged timesheets");
 			handleError(error);
 		}
 	});
 
 // =====================
 // STATISTICS COMMANDS
-// =====================
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // Summary command
 program
@@ -816,6 +890,7 @@ program
 	.option("-a, --activity <id>", "Filter by activity", (v) => parseInt(v, 10))
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
@@ -835,7 +910,9 @@ program
 				size: 500,
 			};
 
-			const timesheets = await api.getTimesheets(listOptions);
+			const timesheets = await withLoading("Fetching timesheets...", () =>
+				api.getTimesheets(listOptions),
+			);
 
 			// Calculate statistics
 			const totalDuration = timesheets.reduce(
@@ -869,7 +946,7 @@ program
 				);
 			} else {
 				console.log(`📊 Summary: ${begin} to ${end}`);
-				console.log("═".repeat(50));
+				console.log(divider("═", LAYOUT.TABLE_WIDTH));
 				console.log(`Total entries: ${timesheets.length}`);
 				console.log(`Total time: ${formatDuration(totalDuration)}`);
 
@@ -880,7 +957,7 @@ program
 				for (const [name, duration] of sortedProjects) {
 					const pct = Math.round((duration / totalDuration) * 100);
 					console.log(
-						`   ${name.padEnd(35)} ${formatDuration(duration).padEnd(10)} ${pct}%`,
+						`   ${pad(name, 35)} ${pad(formatDuration(duration), 10)} ${pct}%`,
 					);
 				}
 
@@ -891,11 +968,12 @@ program
 				for (const [name, duration] of sortedActivities) {
 					const pct = Math.round((duration / totalDuration) * 100);
 					console.log(
-						`   ${name.padEnd(35)} ${formatDuration(duration).padEnd(10)} ${pct}%`,
+						`   ${pad(name, 35)} ${pad(formatDuration(duration), 10)} ${pct}%`,
 					);
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch summary");
 			handleError(error);
 		}
 	});
@@ -906,14 +984,19 @@ program
 	.description("Show timesheets for today")
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 			const today = new Date().toISOString().split("T")[0];
 
-			const timesheets = await api.getTimesheets({
-				begin: `${today}T00:00:00`,
-				size: 100,
-			});
+			const timesheets = await withLoading(
+				"Fetching today's timesheets...",
+				() =>
+					api.getTimesheets({
+						begin: `${today}T00:00:00`,
+						size: 100,
+					}),
+			);
 
 			if (options.json) {
 				console.log(JSON.stringify(timesheets, null, 2));
@@ -921,7 +1004,7 @@ program
 				console.log(
 					`📅 Timesheets for ${formatDate(timesheets[0]?.begin || today)}`,
 				);
-				console.log("═".repeat(50));
+				console.log(divider("═", LAYOUT.TABLE_WIDTH));
 				printTimesheets(timesheets);
 
 				if (timesheets.length > 0) {
@@ -933,6 +1016,7 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch today's timesheets");
 			handleError(error);
 		}
 	});
@@ -943,6 +1027,7 @@ program
 	.description("Show timesheets for current week (Mon-Sun)")
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 			const now = new Date();
@@ -955,11 +1040,15 @@ program
 			const begin = monday.toISOString().split("T")[0];
 			const end = sunday.toISOString().split("T")[0];
 
-			const timesheets = await api.getTimesheets({
-				begin: parseDate(begin),
-				end: `${end}T23:59:59`,
-				size: 500,
-			});
+			const timesheets = await withLoading(
+				"Fetching week's timesheets...",
+				() =>
+					api.getTimesheets({
+						begin: parseDate(begin),
+						end: `${end}T23:59:59`,
+						size: 500,
+					}),
+			);
 
 			if (options.json) {
 				console.log(JSON.stringify(timesheets, null, 2));
@@ -977,10 +1066,11 @@ program
 						0,
 					);
 					console.log("");
-					console.log(styledRow("Total:", colorizeDuration(totalDuration)));
+					console.log(styledRow("Gesamt:", colorizeDuration(totalDuration)));
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch week's timesheets");
 			handleError(error);
 		}
 	});
@@ -993,6 +1083,7 @@ program
 	.option("-m, --month <YYYY-MM>", "Specific month (default: current)")
 	.option("--json", "Output as JSON")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
@@ -1027,11 +1118,15 @@ program
 			const lastDay = new Date(year, month, 0).getDate();
 			const end = `${year}-${String(month).padStart(2, "0")}-${lastDay}`;
 
-			const timesheets = await api.getTimesheets({
-				begin: parseDate(begin),
-				end: `${end}T23:59:59`,
-				size: 500,
-			});
+			const timesheets = await withLoading(
+				"Fetching month's timesheets...",
+				() =>
+					api.getTimesheets({
+						begin: parseDate(begin),
+						end: `${end}T23:59:59`,
+						size: 500,
+					}),
+			);
 
 			if (options.json) {
 				console.log(JSON.stringify(timesheets, null, 2));
@@ -1039,7 +1134,7 @@ program
 				console.log(
 					`📅 Timesheets for ${year}-${String(month).padStart(2, "0")}`,
 				);
-				console.log("═".repeat(50));
+				console.log(divider("═", LAYOUT.TABLE_WIDTH));
 				printTimesheets(timesheets);
 
 				if (timesheets.length > 0) {
@@ -1051,13 +1146,14 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch month's timesheets");
 			handleError(error);
 		}
 	});
 
 // =====================
 // SEARCH COMMANDS
-// =====================
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // Search timesheets by description
 program
@@ -1067,6 +1163,7 @@ program
 	.option("-e, --end <date>", "End date")
 	.option("--json", "Output as JSON")
 	.action(async (query: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
@@ -1076,7 +1173,9 @@ program
 				size: 500,
 			};
 
-			const timesheets = await api.getTimesheets(listOptions);
+			const timesheets = await withLoading("Searching timesheets...", () =>
+				api.getTimesheets(listOptions),
+			);
 			const matches = timesheets.filter(
 				(ts) =>
 					ts.description &&
@@ -1091,13 +1190,14 @@ program
 				console.log(`\nFound: ${matches.length} matches`);
 			}
 		} catch (error) {
+			loading.fail("Search failed");
 			handleError(error);
 		}
 	});
 
 // =====================
 // INTERACTIVE COMMANDS
-// =====================
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // Quick log - just description, uses last project/activity
 program
@@ -1107,11 +1207,15 @@ program
 		parseInt(v, 10),
 	)
 	.action(async (description: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
 			// Get last timesheet to reuse project/activity
-			const lastTimesheets = await api.getTimesheets({ size: 1 });
+			const lastTimesheets = await withLoading(
+				"Finding last timesheet...",
+				() => api.getTimesheets({ size: 1 }),
+			);
 
 			if (lastTimesheets.length === 0) {
 				console.error(
@@ -1148,17 +1252,20 @@ program
 				end = now.toISOString();
 			}
 
-			const timesheet = await api.createTimesheet({
-				project: projectId,
-				activity: activityId,
-				description,
-				begin,
-				end,
-			});
+			const timesheet = await withLoading("Creating timesheet...", () =>
+				api.createTimesheet({
+					project: projectId,
+					activity: activityId,
+					description,
+					begin,
+					end,
+				}),
+			);
 
 			console.log(`✅ Logged: "${description}"`);
 			console.log(`   Duration: ${formatDuration(timesheet.duration)}`);
 		} catch (error) {
+			loading.fail("Failed to create timesheet");
 			handleError(error);
 		}
 	});
@@ -1172,10 +1279,12 @@ program
 	.option("-m, --minutes <mins>", "Duration in minutes", (v) => parseInt(v, 10))
 	.option("-d, --date <YYYY-MM-DD>", "Date (default: today)")
 	.action(async (description: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
 			// Get last timesheet to reuse project/activity
+			loading.start("Finding last timesheet...");
 			const lastTimesheets = await api.getTimesheets({ size: 1 });
 
 			if (lastTimesheets.length === 0) {
@@ -1215,13 +1324,15 @@ program
 			const endDate = new Date(new Date(startTime).getTime() + minutes * 60000);
 			const endTime = endDate.toISOString();
 
-			const timesheet = await api.createTimesheet({
-				project: projectId,
-				activity: activityId,
-				description,
-				begin: startTime,
-				end: endTime,
-			});
+			const timesheet = await withLoading("Creating timesheet...", () =>
+				api.createTimesheet({
+					project: projectId,
+					activity: activityId,
+					description,
+					begin: startTime,
+					end: endTime,
+				}),
+			);
 
 			console.log(`✅ Quick logged: "${description}"`);
 			console.log(
@@ -1231,6 +1342,7 @@ program
 
 			// Check for gaps
 			const dayDate = targetDate;
+			loading.update("Checking for gaps...");
 			const dayTimesheets = await api.getTimesheets({
 				begin: `${dayDate}T00:00:00`,
 				end: `${dayDate}T23:59:59`,
@@ -1239,10 +1351,11 @@ program
 			const gapCheck = checkDayGap(dayTimesheets);
 			if (gapCheck.hasGap && gapCheck.gapMinutes && gapCheck.gapMinutes > 5) {
 				console.log(
-					`\nℹ️  Gap: ${Math.round(gapCheck.gapMinutes)} min (${gapCheck.gapStart?.split("T")[1]?.substring(0, 5)} - ${gapCheck.gapEnd?.split("T")[1]?.substring(0, 5)})`,
+					`\nℹ️  Lücke: ${Math.round(gapCheck.gapMinutes)} min (${gapCheck.gapStart?.split("T")[1]?.substring(0, 5)} - ${gapCheck.gapEnd?.split("T")[1]?.substring(0, 5)})`,
 				);
 			}
 		} catch (error) {
+			loading.fail("Failed to create timesheet");
 			handleError(error);
 		}
 	});
@@ -1264,12 +1377,15 @@ program
 		1,
 	)
 	.action(async (id: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
+			const sourceId = parseId(id, "Timesheet ID");
 
 			// Get the source timesheet
+			loading.start("Finding source timesheet...");
 			const timesheets = await api.getTimesheets({ size: 1000 });
-			const source = timesheets.find((t) => t.id === parseInt(id, 10));
+			const source = timesheets.find((t) => t.id === sourceId);
 
 			if (!source) {
 				console.error(`Timesheet #${id} not found.`);
@@ -1327,6 +1443,7 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to copy timesheet");
 			handleError(error);
 		}
 	});
@@ -1339,6 +1456,7 @@ program
 	.option("-a, --activity <id>", "Activity ID")
 	.option("-d, --description <text>", "Description")
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 
@@ -1347,6 +1465,7 @@ program
 
 			// If no project specified, use last timesheet's project/activity
 			if (!projectId || !activityId) {
+				loading.start("Finding last project/activity...");
 				const lastTimesheets = await api.getTimesheets({ size: 1 });
 				if (lastTimesheets.length > 0) {
 					const last = lastTimesheets[0];
@@ -1373,12 +1492,16 @@ program
 			console.log("\n   Press Ctrl+C to stop...\n");
 
 			// Start the timesheet
-			const timesheet = await api.createTimesheet({
-				project: parseInt(projectId, 10),
-				activity: parseInt(activityId, 10),
-				description: options.description || "Working",
-				begin: new Date().toISOString(),
-			});
+			const timerProjectId = parseId(projectId, "Project ID");
+			const timerActivityId = parseId(activityId, "Activity ID");
+			const timesheet = await withLoading("Starting timer...", () =>
+				api.createTimesheet({
+					project: timerProjectId,
+					activity: timerActivityId,
+					description: options.description || "Working",
+					begin: new Date().toISOString(),
+				}),
+			);
 
 			console.log(`   Timesheet ID: #${timesheet.id}`);
 
@@ -1401,13 +1524,14 @@ program
 				});
 			});
 		} catch (error) {
+			loading.fail("Timer failed");
 			handleError(error);
 		}
 	});
 
 // =====================
 // SMART COMMANDS
-// =====================
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // Range command - add entries for date range with time and break
 program
@@ -1420,6 +1544,7 @@ program
 	.option("--hours <range>", 'Time range like "9-18"')
 	.option("--break <time>", 'Break like "12:30"')
 	.action(async (options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 			const dates = parseDateRange(options.dates);
@@ -1458,6 +1583,7 @@ program
 			}
 			console.log(`\n🎉 ${dates.length * 2} entries created!`);
 		} catch (error) {
+			loading.fail("Range creation failed");
 			handleError(error);
 		}
 	});
@@ -1468,14 +1594,17 @@ program
 	.description("Show timesheets and gaps for a day")
 	.option("--json", "Output as JSON")
 	.action(async (date: string | undefined, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
 			const targetDate = date || new Date().toISOString().split("T")[0];
-			const timesheets = await api.getTimesheets({
-				begin: `${targetDate}T00:00:00`,
-				end: `${targetDate}T23:59:59`,
-				size: 200,
-			});
+			const timesheets = await withLoading("Fetching day's timesheets...", () =>
+				api.getTimesheets({
+					begin: `${targetDate}T00:00:00`,
+					end: `${targetDate}T23:59:59`,
+					size: 200,
+				}),
+			);
 
 			if (options.json) {
 				console.log(JSON.stringify(timesheets, null, 2));
@@ -1485,7 +1614,7 @@ program
 			console.log(
 				styledHeader(
 					`📅 ${formatDate(`${targetDate}T12:00:00`)}`,
-					"Day Overview",
+					"Tagesübersicht",
 				),
 			);
 			console.log("");
@@ -1497,7 +1626,7 @@ program
 					0,
 				);
 				console.log("");
-				console.log(styledRow("Total:", colorizeDuration(total)));
+				console.log(styledRow("Gesamt:", colorizeDuration(total)));
 				const gapCheck = checkDayGap(timesheets);
 				console.log(
 					styledRow("Status:", colorizeStatus(gapCheck.hasGap, total)),
@@ -1512,6 +1641,7 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Failed to fetch day's timesheets");
 			handleError(error);
 		}
 	});
@@ -1522,10 +1652,13 @@ program
 	.description("Copy a timesheet to other dates")
 	.option("-d, --dates <range>", 'Date range like "19.05-21.05"')
 	.action(async (id: string, options) => {
+		const loading = createLoading();
 		try {
 			const api = createApi();
+			const sourceId = parseId(id, "Timesheet ID");
+			loading.start("Finding source timesheet...");
 			const timesheets = await api.getTimesheets({ size: 1000 });
-			const source = timesheets.find((t) => t.id === parseInt(id, 10));
+			const source = timesheets.find((t) => t.id === sourceId);
 			if (!source) {
 				console.error(`Timesheet #${id} not found.`);
 				process.exit(1);
@@ -1543,7 +1676,7 @@ program
 			console.log(
 				`📋 Template: ${formatDateTime(source.begin)} - ${formatTime(source.end)}`,
 			);
-			console.log(`📅 Copying to ${dates.length} days...\n`);
+			console.log(`📅 Kopiere auf ${dates.length} Tage...\n`);
 
 			for (const date of dates) {
 				try {
@@ -1562,6 +1695,7 @@ program
 				}
 			}
 		} catch (error) {
+			loading.fail("Repeat failed");
 			handleError(error);
 		}
 	});
