@@ -34,33 +34,39 @@ export KIMAI_API_KEY="your-api-key"
 ## Usage
 
 ### Quick Entry (fastest)
+
 ```bash
 kimai-cli quick "Meeting" -m 30     # 30 minutes
 kimai-cli quick "Working on X"       # 1 hour default
 ```
 
 ### Log Entry
+
 ```bash
 kimai-cli log "Working on X" -m 45
 ```
 
 ### Add Entry (full options)
+
 ```bash
 kimai-cli add -p 5 -a 4 -d "Description" -b "2024-05-21T09:00" -e "2024-05-21T17:00"
 ```
 
 ### Copy Entry
+
 ```bash
 kimai-cli copy 12345 -d 1 -c 5   # Copy entry 12345, +1 day, 5 copies
 ```
 
 ### Interactive Timer
+
 ```bash
 kimai-cli timer -p 5 -a 4 -d "Working"
 # Press Ctrl+C to stop
 ```
 
 ### View Entries
+
 ```bash
 kimai-cli today        # Today's entries
 kimai-cli week        # This week's entries
@@ -69,6 +75,7 @@ kimai-cli list        # All entries (with filters)
 ```
 
 ### Other Commands
+
 ```bash
 kimai-cli status           # API status
 kimai-cli projects         # List projects
@@ -91,6 +98,7 @@ kimai-cli search "query"   # Search entries
 ## Options
 
 Most commands support:
+
 - `--json` - JSON output
 - `-y, --yes` - Skip confirmation
 

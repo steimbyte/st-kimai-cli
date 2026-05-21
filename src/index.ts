@@ -173,7 +173,7 @@ program
 				activity: options.activity,
 				user: options.user,
 				begin: options.begin ? parseDate(options.begin) : undefined,
-				end: options.end ? parseDate(options.end) : undefined,
+				end: options.end ? parseEndDate(options.end) : undefined,
 				state: options.state as "active" | "stopped" | undefined,
 				billable: options.billable ? true : undefined,
 				exported: options.exported ? true : undefined,
