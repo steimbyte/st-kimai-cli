@@ -4,10 +4,14 @@ import type { Timesheet, Project, Customer, Activity } from "./types.js";
  * Get ISO calendar week number (KW in German)
  */
 export function getCalendarWeek(date: Date): number {
-	const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+	const d = new Date(
+		Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+	);
 	d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
 	const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-	const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+	const weekNo = Math.ceil(
+		((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+	);
 	return weekNo;
 }
 
@@ -322,4 +326,115 @@ export function formatBreakWarning(
 	}
 
 	return msg;
+}
+
+/**
+ * Parse date range like "19.05-21.05" or "19.05-21.05.2026" into array of dates
+ */
+export function parseDateRange(rangeStr: string): string[] {
+	const dates: string[] = [];
+
+	if (rangeStr.includes("-")) {
+		const currentYear = new Date().getFullYear();
+
+		// Handle DD.MM-DD.MM format
+		const dotMatch = rangeStr.match(
+			/^(\d{1,2})\.(\d{1,2})-(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/,
+		);
+		if (dotMatch) {
+			const [, sDay, sMonth, eDay, eMonth, year] = dotMatch;
+			const y = year ? parseInt(year) : currentYear;
+
+			const startDate = new Date(y, parseInt(sMonth) - 1, parseInt(sDay));
+			const endDate = new Date(y, parseInt(eMonth) - 1, parseInt(eDay));
+
+			for (
+				let d = new Date(startDate);
+				d <= endDate;
+				d.setDate(d.getDate() + 1)
+			) {
+				dates.push(d.toISOString().split("T")[0]);
+			}
+		}
+	} else if (rangeStr.includes(",")) {
+		// Comma-separated dates
+		const currentYear = new Date().getFullYear();
+		for (const part of rangeStr.split(",")) {
+			const trimmed = part.trim();
+			if (trimmed.includes(".")) {
+				const [day, month] = trimmed.split(".").map(Number);
+				dates.push(
+					`${currentYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+				);
+			} else {
+				dates.push(trimmed);
+			}
+		}
+	} else {
+		dates.push(rangeStr);
+	}
+
+	return dates;
+}
+
+/**
+ * Parse time range like "09:00-18:00" into start and end times
+ */
+export function parseTimeRange(
+	timeStr: string,
+): { start: string; end: string } | null {
+	const match = timeStr.match(/^(\d{1,2}):?(\d{2})?-(\d{1,2}):?(\d{2})?$/);
+	if (!match) {
+		// Try simple format like "9-18"
+		const simple = timeStr.match(/^(\d{1,2})-(\d{1,2})$/);
+		if (simple) {
+			return {
+				start: `${String(simple[1]).padStart(2, "0")}:00:00`,
+				end: `${String(simple[2]).padStart(2, "0")}:00:00`,
+			};
+		}
+		return null;
+	}
+
+	const startHour = match[1].padStart(2, "0");
+	const startMin = (match[2] || "00").padStart(2, "0");
+	const endHour = (match[3] || match[1]).padStart(2, "0");
+	const endMin = (match[4] || "00").padStart(2, "0");
+
+	return {
+		start: `${startHour}:${startMin}:00`,
+		end: `${endHour}:${endMin}:00`,
+	};
+}
+
+/**
+ * Parse break time like "12:30" or "12:30-13:00"
+ */
+export function parseBreak(
+	breakStr: string,
+): { start: string; end: string } | null {
+	const parts = breakStr.split("-");
+	if (parts.length === 2) {
+		return {
+			start: `${parts[0]}:00`,
+			end: `${parts[1]}:00`,
+		};
+	} else if (parts.length === 1) {
+		// Default: 30 min break starting at given time
+		return {
+			start: `${parts[0]}:00`,
+			end: `${parts[0].split(":")[0].padStart(2, "0")}:30:00`,
+		};
+	}
+	return null;
+}
+
+/**
+ * Calculate total duration from time range
+ */
+export function calculateDuration(startTime: string, endTime: string): number {
+	const [startH, startM] = startTime.split(":").map(Number);
+	const [endH, endM] = endTime.split(":").map(Number);
+	const totalMinutes = endH * 60 + endM - (startH * 60 + startM);
+	return totalMinutes * 60; // Return seconds
 }

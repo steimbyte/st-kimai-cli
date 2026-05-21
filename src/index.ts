@@ -24,6 +24,10 @@ import {
 	checkDayGap,
 	getDatePart,
 	getCalendarWeek,
+	parseDateRange,
+	parseTimeRange,
+	parseBreak,
+	calculateDuration,
 } from "./utils.js";
 import type { ListTimesheetsOptions } from "./types.js";
 
@@ -933,9 +937,7 @@ program
 				console.log(JSON.stringify(timesheets, null, 2));
 			} else {
 				const kw = getCalendarWeek(monday);
-				console.log(
-					`📅 KW ${kw} (${formatDate(begin)} - ${formatDate(end)})`,
-				);
+				console.log(`📅 KW ${kw} (${formatDate(begin)} - ${formatDate(end)})`);
 				console.log("═".repeat(50));
 				printTimesheets(timesheets);
 
@@ -1370,6 +1372,156 @@ program
 					resolve();
 				});
 			});
+		} catch (error) {
+			handleError(error);
+		}
+	});
+
+// =====================
+// SMART COMMANDS
+// =====================
+
+// Range command - add entries for date range with time and break
+program
+	.command("range")
+	.description("Add entries for a date range with time and break")
+	.requiredOption("-d, --dates <range>", 'Date range like "19.05-21.05"')
+	.requiredOption("-p, --project <id>", "Project ID", (v) => parseInt(v, 10))
+	.requiredOption("-a, --activity <id>", "Activity ID", (v) => parseInt(v, 10))
+	.option("-t, --text <description>", "Description")
+	.option("--hours <range>", 'Time range like "9-18"')
+	.option("--break <time>", 'Break like "12:30"')
+	.action(async (options) => {
+		try {
+			const api = createApi();
+			const dates = parseDateRange(options.dates);
+			const timeRange = options.hours
+				? (parseTimeRange(options.hours) || { start: "08:00:00", end: "16:30:00" })
+				: { start: "08:00:00", end: "16:30:00" };
+			const breakTime = options.break
+				? (parseBreak(options.break) || { start: "12:00:00", end: "12:30:00" })
+				: { start: "12:00:00", end: "12:30:00" };
+
+			console.log(`📅 Creating entries for ${dates.length} days...`);
+			for (const date of dates) {
+				const desc = options.text || "";
+				// Morning
+				await api.createTimesheet({
+					project: options.project,
+					activity: options.activity,
+					description: desc,
+					begin: `${date}T${timeRange.start}`,
+					end: `${date}T${breakTime.start}`,
+				});
+				// Afternoon
+				await api.createTimesheet({
+					project: options.project,
+					activity: options.activity,
+					description: desc,
+					begin: `${date}T${breakTime.end}`,
+					end: `${date}T${timeRange.end}`,
+				});
+				console.log(
+					`✅ ${date}: ${timeRange.start.substring(0, 5)}-${timeRange.end.substring(0, 5)}`,
+				);
+			}
+			console.log(`\n🎉 ${dates.length * 2} entries created!`);
+		} catch (error) {
+			handleError(error);
+		}
+	});
+
+// Day command - show gaps for a specific day
+program
+	.command("day [date]")
+	.description("Show timesheets and gaps for a day")
+	.option("--json", "Output as JSON")
+	.action(async (date: string | undefined, options) => {
+		try {
+			const api = createApi();
+			const targetDate = date || new Date().toISOString().split("T")[0];
+			const timesheets = await api.getTimesheets({
+				begin: `${targetDate}T00:00:00`,
+				end: `${targetDate}T23:59:59`,
+				size: 200,
+			});
+
+			if (options.json) {
+				console.log(JSON.stringify(timesheets, null, 2));
+				return;
+			}
+
+			console.log(`📅 Timesheets for ${formatDate(`${targetDate}T12:00:00`)}`);
+			console.log("═".repeat(50));
+			printTimesheets(timesheets);
+
+			if (timesheets.length > 0) {
+				const total = timesheets.reduce(
+					(sum, ts) => sum + (ts.duration || 0),
+					0,
+				);
+				console.log(`\nTotal: ${formatDuration(total)}`);
+				const gapCheck = checkDayGap(timesheets);
+				if (gapCheck.hasGap) {
+					console.log(
+						`\n✅ Pause vorhanden: ${Math.round(gapCheck.gapMinutes!)} min`,
+					);
+				} else {
+					console.log(
+						`\n⚠️  Warnung: Keine Pause! (${Math.round((total / 3600) * 10) / 10}h total)`,
+					);
+				}
+			}
+		} catch (error) {
+			handleError(error);
+		}
+	});
+
+// Repeat command - copy template to other dates
+program
+	.command("repeat <id>")
+	.description("Copy a timesheet to other dates")
+	.option("-d, --dates <range>", 'Date range like "19.05-21.05"')
+	.action(async (id: string, options) => {
+		try {
+			const api = createApi();
+			const timesheets = await api.getTimesheets({ size: 1000 });
+			const source = timesheets.find((t) => t.id === parseInt(id, 10));
+			if (!source) {
+				console.error(`Timesheet #${id} not found.`);
+				process.exit(1);
+			}
+
+			const projectId = getEntityId(source.project);
+			const activityId = getEntityId(source.activity);
+			const dates = options.dates ? parseDateRange(options.dates) : [];
+			const timePart =
+				source.begin.split("T")[1]?.substring(0, 8) || "08:00:00";
+			const endPart =
+				(source.end || source.begin).split("T")[1]?.substring(0, 8) ||
+				"16:30:00";
+
+			console.log(
+				`📋 Template: ${formatDateTime(source.begin)} - ${formatTime(source.end)}`,
+			);
+			console.log(`📅 Kopiere auf ${dates.length} Tage...\n`);
+
+			for (const date of dates) {
+				try {
+					const newTs = await api.createTimesheet({
+						project: projectId!,
+						activity: activityId!,
+						description: source.description || "",
+						begin: `${date}T${timePart}`,
+						end: `${date}T${endPart}`,
+					});
+					console.log(
+						`✅ ${date}: ${timePart.substring(0, 5)}-${endPart.substring(0, 5)}`,
+					);
+				} catch (err) {
+					console.log(`❌ ${date}: ${(err as Error).message}`);
+				}
+			}
 		} catch (error) {
 			handleError(error);
 		}
