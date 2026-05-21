@@ -27,7 +27,6 @@ import {
 	parseDateRange,
 	parseTimeRange,
 	parseBreak,
-	parseId,
 	sanitizeError,
 	formatError,
 	styledHeader,
@@ -96,7 +95,9 @@ function createApi(): KimaiApi {
 // Helper to handle errors
 function handleError(error: unknown, showHelp = true): never {
 	if (error instanceof KimaiApiError) {
-		console.error(`\n❌ API Error ${formatError({ statusCode: error.statusCode, message: error.message })}`);
+		console.error(
+			`\n❌ API Error ${formatError({ statusCode: error.statusCode, message: error.message })}`,
+		);
 		if (showHelp) {
 			showQuickHelp();
 		}
@@ -320,27 +321,27 @@ program
 				tags,
 			});
 
-			console.log(styledSuccess(`Timesheet #${timesheet.id} erstellt`));
+			console.log(styledSuccess(`Timesheet #${timesheet.id} created`));
 			console.log(
-				styledRow("Projekt:", getProjectName(timesheet.project), styles.cyan),
+				styledRow("Project:", getProjectName(timesheet.project), styles.cyan),
 			);
 			console.log(
 				styledRow(
-					"Aktivität:",
+					"Activity:",
 					getActivityName(timesheet.activity),
 					styles.magenta,
 				),
 			);
 			if (timesheet.description) {
-				console.log(styledRow("Beschreibung:", timesheet.description));
+				console.log(styledRow("Description:", timesheet.description));
 			}
 			console.log(
 				styledRow(
-					"Zeit:",
+					"Time:",
 					`${formatTime(timesheet.begin)} - ${formatTime(timesheet.end)}`,
 				),
 			);
-			console.log(styledRow("Dauer:", colorizeDuration(timesheet.duration)));
+			console.log(styledRow("Duration:", colorizeDuration(timesheet.duration)));
 
 			// Check for gaps in the day
 			const dayDate = getDatePart(timesheet.begin);
@@ -353,7 +354,7 @@ program
 				const gapCheck = checkDayGap(dayTimesheets);
 				if (gapCheck.hasGap && gapCheck.gapMinutes) {
 					console.log(
-						`\nℹ️  Lücke erkannt: ${Math.round(gapCheck.gapMinutes)} min (${gapCheck.gapStart?.split("T")[1]?.substring(0, 5)} - ${gapCheck.gapEnd?.split("T")[1]?.substring(0, 5)})`,
+						`\nℹ️  Gap detected: ${Math.round(gapCheck.gapMinutes)} min (${gapCheck.gapStart?.split("T")[1]?.substring(0, 5)} - ${gapCheck.gapEnd?.split("T")[1]?.substring(0, 5)})`,
 					);
 				}
 			}
@@ -444,20 +445,22 @@ program
 	.description("Delete a timesheet by ID")
 	.option("-y, --yes", "Skip confirmation")
 	.action(async (id: string, options) => {
+		let rl: Awaited<ReturnType<typeof import("readline").createInterface>> | null = null;
 		try {
 			const api = createApi();
 			const timesheetId = parseInt(id, 10);
 
 			if (!options.yes) {
 				const readline = await import("readline");
-				const rl = readline.createInterface({
+				rl = readline.createInterface({
 					input: process.stdin,
 					output: process.stdout,
 				});
 				const answer = await new Promise<string>((resolve) => {
-					rl.question(`Delete timesheet #${id}? [y/N] `, resolve);
+					rl!.question(`Delete timesheet #${id}? [y/N] `, resolve);
 				});
 				rl.close();
+				rl = null;
 
 				if (answer.toLowerCase() !== "y") {
 					console.log("Cancelled.");
@@ -468,6 +471,9 @@ program
 			await api.deleteTimesheet(timesheetId);
 			console.log(`✅ Timesheet #${id} deleted.`);
 		} catch (error) {
+			if (rl) {
+				rl.close();
+			}
 			handleError(error);
 		}
 	});
@@ -971,7 +977,7 @@ program
 						0,
 					);
 					console.log("");
-					console.log(styledRow("Gesamt:", colorizeDuration(totalDuration)));
+					console.log(styledRow("Total:", colorizeDuration(totalDuration)));
 				}
 			}
 		} catch (error) {
@@ -1233,7 +1239,7 @@ program
 			const gapCheck = checkDayGap(dayTimesheets);
 			if (gapCheck.hasGap && gapCheck.gapMinutes && gapCheck.gapMinutes > 5) {
 				console.log(
-					`\nℹ️  Lücke: ${Math.round(gapCheck.gapMinutes)} min (${gapCheck.gapStart?.split("T")[1]?.substring(0, 5)} - ${gapCheck.gapEnd?.split("T")[1]?.substring(0, 5)})`,
+					`\nℹ️  Gap: ${Math.round(gapCheck.gapMinutes)} min (${gapCheck.gapStart?.split("T")[1]?.substring(0, 5)} - ${gapCheck.gapEnd?.split("T")[1]?.substring(0, 5)})`,
 				);
 			}
 		} catch (error) {
@@ -1479,7 +1485,7 @@ program
 			console.log(
 				styledHeader(
 					`📅 ${formatDate(`${targetDate}T12:00:00`)}`,
-					"Tagesübersicht",
+					"Day Overview",
 				),
 			);
 			console.log("");
@@ -1491,7 +1497,7 @@ program
 					0,
 				);
 				console.log("");
-				console.log(styledRow("Gesamt:", colorizeDuration(total)));
+				console.log(styledRow("Total:", colorizeDuration(total)));
 				const gapCheck = checkDayGap(timesheets);
 				console.log(
 					styledRow("Status:", colorizeStatus(gapCheck.hasGap, total)),
@@ -1537,7 +1543,7 @@ program
 			console.log(
 				`📋 Template: ${formatDateTime(source.begin)} - ${formatTime(source.end)}`,
 			);
-			console.log(`📅 Kopiere auf ${dates.length} Tage...\n`);
+			console.log(`📅 Copying to ${dates.length} days...\n`);
 
 			for (const date of dates) {
 				try {
