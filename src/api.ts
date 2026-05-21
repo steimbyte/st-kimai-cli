@@ -1,3 +1,9 @@
+/**
+ * Kimai API client for time-tracking operations
+ * Handles authentication, request management, and API error handling
+ */
+
+import { DEFAULT_TIMEOUT_MS } from "./constants.js";
 import type {
 	AuthConfig,
 	Timesheet,
@@ -12,11 +18,20 @@ import type {
 	ListTimesheetsOptions,
 } from "./types.js";
 
+/**
+ * Kimai API client
+ * Provides methods for all Kimai v1 API endpoints
+ */
 export class KimaiApi {
 	private baseUrl: string;
 	private apiKey: string;
 	private headers: Record<string, string>;
 
+	/**
+	 * Create a new API client
+	 * @param config - Auth configuration with url and apiKey
+	 * @throws Error if URL doesn't use HTTPS
+	 */
 	constructor(config: AuthConfig) {
 		// Validate HTTPS requirement for security
 		try {
@@ -27,10 +42,14 @@ export class KimaiApi {
 						`Got: ${config.url}`,
 				);
 			}
-		} catch {
+		} catch (e) {
+			// Re-throw HTTPS validation errors
+			if (e instanceof Error && e.message.includes("HTTPS")) {
+				throw e;
+			}
 			// If URL parsing fails, let it fail naturally in request
 		}
-		
+
 		this.baseUrl = `${config.url}/api`.replace(/\/+$/, "");
 		this.apiKey = config.apiKey;
 		this.headers = {
@@ -40,13 +59,19 @@ export class KimaiApi {
 		};
 	}
 
+	/**
+	 * Execute authenticated API request with timeout
+	 * @param endpoint - API endpoint path
+	 * @param options - Fetch options
+	 * @returns Parsed response data
+	 */
 	private async request<T>(
 		endpoint: string,
 		options: RequestInit = {},
 	): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 30000);
+		const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
 		let response: Response;
 		try {
@@ -63,43 +88,65 @@ export class KimaiApi {
 		}
 
 		if (!response.ok) {
-			const error = await response
+			const errorJson = (await response
 				.json()
-				.catch(() => ({ message: response.statusText }));
-			// Extract detailed error messages from Kimai API
-			const errorData = error as {
-				message?: string;
-				errors?: { errors?: string[] };
-			};
-			let errorMessage = errorData.message || response.statusText;
-			if (errorData.errors?.errors && errorData.errors.errors.length > 0) {
-				errorMessage = errorData.errors.errors.join("; ");
-			}
-			throw new KimaiApiError(response.status, errorMessage);
+				.catch(() => ({ message: response.statusText }))) as Record<
+				string,
+				unknown
+			>;
+			const errorMessage =
+				(typeof errorJson?.message === "string" && errorJson.message) ||
+				response.statusText;
+			const detailedErrors =
+				errorJson?.errors &&
+				typeof errorJson.errors === "object" &&
+				errorJson.errors !== null
+					? (errorJson.errors as { errors?: string[] }).errors
+					: undefined;
+			const finalMessage =
+				detailedErrors && detailedErrors.length > 0
+					? detailedErrors.join("; ")
+					: errorMessage;
+			throw new KimaiApiError(response.status, finalMessage);
 		}
 
-		// Handle 204 No Content
+		// Handle 204 No Content - return null for void responses
 		if (response.status === 204) {
-			return {} as T;
+			return null as unknown as T;
 		}
 
 		return response.json() as Promise<T>;
 	}
 
-	// System endpoints
+	/**
+	 * Ping the API server
+	 * @returns Server ping response
+	 */
 	async ping(): Promise<{ message: string }> {
 		return this.request("/ping");
 	}
 
+	/**
+	 * Get API version info
+	 * @returns Version information
+	 */
 	async version(): Promise<Version> {
 		return this.request("/version");
 	}
 
+	/**
+	 * Get installed plugins
+	 * @returns List of plugins
+	 */
 	async plugins(): Promise<Plugin[]> {
 		return this.request("/plugins");
 	}
 
-	// Timesheet endpoints
+	/**
+	 * Get timesheets with optional filters
+	 * @param options - Query options (project, activity, user, date range, state, etc.)
+	 * @returns Array of timesheets
+	 */
 	async getTimesheets(
 		options: ListTimesheetsOptions = {},
 	): Promise<Timesheet[]> {
@@ -124,13 +171,39 @@ export class KimaiApi {
 		return this.request(`/timesheets${query ? `?${query}` : ""}`);
 	}
 
+	/**
+	 * Get currently active (running) timesheets
+	 * @returns Array of active timesheets
+	 */
 	async getActiveTimesheetsRaw(): Promise<Timesheet[]> {
 		const params = new URLSearchParams();
 		params.set("active", "1");
 		return this.request(`/timesheets?${params.toString()}`);
 	}
 
+	/**
+	 * Create a new timesheet entry
+	 * @param options - Timesheet creation options
+	 * @returns Created timesheet
+	 * @throws Error if project/activity IDs are invalid
+	 */
 	async createTimesheet(options: CreateTimesheetOptions): Promise<Timesheet> {
+		// Validate IDs are positive integers
+		if (
+			typeof options.project !== "number" ||
+			!Number.isInteger(options.project) ||
+			options.project <= 0
+		) {
+			throw new Error("Project ID must be a positive integer");
+		}
+		if (
+			typeof options.activity !== "number" ||
+			!Number.isInteger(options.activity) ||
+			options.activity <= 0
+		) {
+			throw new Error("Activity ID must be a positive integer");
+		}
+
 		const body: Record<string, unknown> = {
 			project: options.project,
 			activity: options.activity,
@@ -147,6 +220,12 @@ export class KimaiApi {
 		});
 	}
 
+	/**
+	 * Stop (close) a timesheet
+	 * @param id - Timesheet ID
+	 * @param endTime - End time in ISO format
+	 * @returns Updated timesheet
+	 */
 	async stopTimesheet(id: number, endTime: string): Promise<Timesheet> {
 		return this.request(`/timesheets/${id}`, {
 			method: "PATCH",
@@ -154,12 +233,22 @@ export class KimaiApi {
 		});
 	}
 
+	/**
+	 * Delete a timesheet
+	 * @param id - Timesheet ID to delete
+	 */
 	async deleteTimesheet(id: number): Promise<void> {
 		return this.request(`/timesheets/${id}`, {
 			method: "DELETE",
 		});
 	}
 
+	/**
+	 * Update a timesheet with partial data
+	 * @param id - Timesheet ID
+	 * @param updates - Fields to update
+	 * @returns Updated timesheet
+	 */
 	async updateTimesheet(
 		id: number,
 		updates: Record<string, unknown>,
@@ -170,53 +259,95 @@ export class KimaiApi {
 		});
 	}
 
-	// Project endpoints
+	/**
+	 * Get all projects
+	 * @param full - Include full entity details
+	 * @returns Array of projects
+	 */
 	async getProjects(full = false): Promise<Project[]> {
 		const query = full ? "?full=true" : "";
 		return this.request(`/projects${query}`);
 	}
 
+	/**
+	 * Get a single project by ID
+	 * @param id - Project ID
+	 * @returns Project details
+	 */
 	async getProject(id: number): Promise<Project> {
 		return this.request(`/projects/${id}`);
 	}
 
-	// Customer endpoints
+	/**
+	 * Get all customers
+	 * @param full - Include full entity details
+	 * @returns Array of customers
+	 */
 	async getCustomers(full = false): Promise<Customer[]> {
 		const query = full ? "?full=true" : "";
 		return this.request(`/customers${query}`);
 	}
 
+	/**
+	 * Get a single customer by ID
+	 * @param id - Customer ID
+	 * @returns Customer details
+	 */
 	async getCustomer(id: number): Promise<Customer> {
 		return this.request(`/customers/${id}`);
 	}
 
-	// Activity endpoints
+	/**
+	 * Get all activities
+	 * @param full - Include full entity details
+	 * @returns Array of activities
+	 */
 	async getActivities(full = false): Promise<Activity[]> {
 		const query = full ? "?full=true" : "";
 		return this.request(`/activities${query}`);
 	}
 
+	/**
+	 * Get a single activity by ID
+	 * @param id - Activity ID
+	 * @returns Activity details
+	 */
 	async getActivity(id: number): Promise<Activity> {
 		return this.request(`/activities/${id}`);
 	}
 
-	// Tags endpoints
+	/**
+	 * Get all tags
+	 * @returns Array of tag names
+	 */
 	async getTags(): Promise<string[]> {
 		return this.request("/tags");
 	}
 
-	// User endpoints
+	/**
+	 * Get all users
+	 * @returns Array of users
+	 */
 	async getUsers(): Promise<User[]> {
 		return this.request("/users");
 	}
 
-	// Teams endpoints
+	/**
+	 * Get all teams
+	 * @returns Array of teams
+	 */
 	async getTeams(): Promise<Team[]> {
 		return this.request("/teams");
 	}
 }
 
+/**
+ * API error with HTTP status code
+ */
 export class KimaiApiError extends Error {
+	/**
+	 * HTTP status code from API
+	 */
 	constructor(
 		public statusCode: number,
 		message: string,
