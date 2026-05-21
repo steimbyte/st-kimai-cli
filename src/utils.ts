@@ -698,7 +698,14 @@ export function parseTimeRange(
 		if (simple) {
 			const startH = parseInt(simple[1], 10);
 			const endH = parseInt(simple[2], 10);
-			if (isNaN(startH) || isNaN(endH) || startH < 0 || startH > 23 || endH < 0 || endH > 23) {
+			if (
+				isNaN(startH) ||
+				isNaN(endH) ||
+				startH < 0 ||
+				startH > 23 ||
+				endH < 0 ||
+				endH > 23
+			) {
 				return null;
 			}
 			return {
@@ -716,9 +723,18 @@ export function parseTimeRange(
 
 	// Validate ranges
 	if (
-		isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM) ||
-		startH < 0 || startH > 23 || startM < 0 || startM > 59 ||
-		endH < 0 || endH > 23 || endM < 0 || endM > 59
+		isNaN(startH) ||
+		isNaN(startM) ||
+		isNaN(endH) ||
+		isNaN(endM) ||
+		startH < 0 ||
+		startH > 23 ||
+		startM < 0 ||
+		startM > 59 ||
+		endH < 0 ||
+		endH > 23 ||
+		endM < 0 ||
+		endM > 59
 	) {
 		return null;
 	}
@@ -762,23 +778,37 @@ export function parseBreak(
 export function calculateDuration(startTime: string, endTime: string): number {
 	const startParts = startTime.split(":").map(Number);
 	const endParts = endTime.split(":").map(Number);
-	
+
 	if (startParts.length !== 3 || endParts.length !== 3) {
 		throw new Error(`Invalid time format: expected HH:MM:SS`);
 	}
-	
+
 	const [startH, startM, startS] = startParts;
 	const [endH, endM, endS] = endParts;
-	
+
 	if ([startH, startM, startS, endH, endM, endS].some(isNaN)) {
-		throw new Error(`Invalid time format: non-numeric values in "${startTime}" or "${endTime}"`);
+		throw new Error(
+			`Invalid time format: non-numeric values in "${startTime}" or "${endTime}"`,
+		);
 	}
-	
-	if (startH < 0 || startH > 23 || startM < 0 || startM > 59 || startS < 0 || startS > 59 ||
-		endH < 0 || endH > 23 || endM < 0 || endM > 59 || endS < 0 || endS > 59) {
+
+	if (
+		startH < 0 ||
+		startH > 23 ||
+		startM < 0 ||
+		startM > 59 ||
+		startS < 0 ||
+		startS > 59 ||
+		endH < 0 ||
+		endH > 23 ||
+		endM < 0 ||
+		endM > 59 ||
+		endS < 0 ||
+		endS > 59
+	) {
 		throw new Error(`Invalid time range: values out of bounds`);
 	}
-	
+
 	const totalMinutes = endH * 60 + endM - (startH * 60 + startM);
 	return totalMinutes * 60; // Return seconds
 }

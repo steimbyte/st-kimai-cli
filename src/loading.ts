@@ -184,10 +184,11 @@ export async function withLoading<T>(
 		spinner.succeed(successMsg);
 		return result;
 	} catch (error) {
+		const err = error instanceof Error ? error : new Error(String(error));
 		const failMsg =
-			options?.onFail?.(error as Error) ||
+			options?.onFail?.(err) ||
 			options?.failText ||
-			`Failed: ${(error as Error).message}`;
+			`Failed: ${err.message}`;
 		spinner.fail(failMsg);
 		throw error;
 	}
@@ -209,7 +210,8 @@ export function withLoadingPersistent(text: string): {
 			spinner.succeed();
 			return result;
 		} catch (error) {
-			spinner.fail((error as Error).message);
+			const err = error instanceof Error ? error : new Error(String(error));
+			spinner.fail(err.message);
 			throw error;
 		}
 	};

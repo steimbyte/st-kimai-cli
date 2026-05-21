@@ -2,6 +2,24 @@ import * as fs from "fs";
 import * as path from "path";
 import type { AuthConfig } from "./types.js";
 
+/**
+ * Type guard to check if error is a Node.js error with code property
+ */
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+	return error instanceof Error && "code" in error;
+}
+
+/**
+ * Type guard to validate AuthConfig structure
+ */
+function isAuthConfig(value: unknown): value is AuthConfig {
+	if (value === null || typeof value !== "object") {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	return typeof obj.url === "string" && typeof obj.apiKey === "string";
+}
+
 const CONFIG_FILES = [
 	"./auth.json",
 	path.join(process.env.HOME || "", ".kimai-cli", "auth.json"),
@@ -74,9 +92,15 @@ export function loadAuthConfig(configFile?: string): AuthConfig {
 		const content = fs.readFileSync(configPath, "utf-8");
 		let config: AuthConfig;
 		try {
-			config = JSON.parse(content) as AuthConfig;
+			const parsed = JSON.parse(content);
+			if (isAuthConfig(parsed)) {
+				config = parsed;
+			} else {
+				throw new Error("Invalid auth.json: missing 'url' or 'apiKey'");
+			}
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error);
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
 			throw new Error(`Invalid auth.json: ${errorMessage}`);
 		}
 
@@ -89,13 +113,13 @@ export function loadAuthConfig(configFile?: string): AuthConfig {
 
 		return config;
 	} catch (error) {
-		const err = error as NodeJS.ErrnoException;
-		if (err.code === "ENOENT") {
+		if (isNodeError(error) && error.code === "ENOENT") {
 			throw new Error(`Config file not found: ${configPath}`);
 		}
-		// Preserve stack trace for debugging
-		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(`Failed to read config: ${message}`);
+		if (error instanceof Error) {
+			throw new Error(`Failed to read config: ${error.message}`);
+		}
+		throw new Error(`Failed to read config: ${String(error)}`);
 	}
 }
 

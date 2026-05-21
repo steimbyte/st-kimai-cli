@@ -46,6 +46,29 @@ import type { ListTimesheetsOptions } from "./types.js";
 
 const program = new Command();
 
+/**
+ * Validate state option is one of the allowed values
+ */
+function isValidState(value: unknown): value is "active" | "stopped" {
+	return value === "active" || value === "stopped";
+}
+
+/**
+ * Validate that a value is a positive integer (not NaN)
+ */
+function isValidId(value: unknown): value is number {
+	return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+/**
+ * Get customer name from project.customer field
+ */
+function getCustomerDisplayName(customer: number | { name: string } | null): string {
+	if (customer === null) return "-";
+	if (typeof customer === "number") return `#${customer}`;
+	return customer.name;
+}
+
 // Show help reference on error
 function showQuickHelp(errorMsg?: string): void {
 	if (errorMsg) {
@@ -196,12 +219,12 @@ program
 			const api = createApi();
 
 			const listOptions: ListTimesheetsOptions = {
-				project: options.project,
-				activity: options.activity,
-				user: options.user,
+				project: isValidId(options.project) ? options.project : undefined,
+				activity: isValidId(options.activity) ? options.activity : undefined,
+				user: isValidId(options.user) ? options.user : undefined,
 				begin: options.begin ? parseDate(options.begin) : undefined,
 				end: options.end ? parseEndDate(options.end) : undefined,
-				state: options.state as "active" | "stopped" | undefined,
+				state: isValidState(options.state) ? options.state : undefined,
 				billable: options.billable ? true : undefined,
 				exported: options.exported ? true : undefined,
 				full: options.full,
@@ -642,7 +665,7 @@ program
 				console.log(`Project #${project.id}: ${project.name}`);
 				console.log(divider());
 				console.log(
-					`Customer: ${typeof project.customer === "object" ? (project.customer as { name: string })?.name : `#${project.customer}`}`,
+				`Customer: ${getCustomerDisplayName(project.customer)}`,
 				);
 				console.log(`Visible: ${project.visible ? "Yes" : "No"}`);
 				console.log(`Billable: ${project.billable ? "Yes" : "No"}`);
@@ -915,9 +938,9 @@ program
 			const listOptions: ListTimesheetsOptions = {
 				begin: parseDate(begin),
 				end: parseEndDate(end),
-				user: options.user,
-				project: options.project,
-				activity: options.activity,
+				user: isValidId(options.user) ? options.user : undefined,
+				project: isValidId(options.project) ? options.project : undefined,
+				activity: isValidId(options.activity) ? options.activity : undefined,
 				size: 500,
 			};
 
@@ -1450,7 +1473,8 @@ program
 						`✅ Copied #${newTimesheet.id}: ${formatDate(newTimesheet.begin)} ${formatTime(newTimesheet.begin)}-${formatTime(newTimesheet.end)}`,
 					);
 				} catch (err) {
-					console.log(`❌ Failed: ${newDateStr} - ${(err as Error).message}`);
+					const errorMsg = err instanceof Error ? err.message : String(err);
+					console.log(`❌ Failed: ${newDateStr} - ${errorMsg}`);
 				}
 			}
 		} catch (error) {
@@ -1529,7 +1553,8 @@ program
 							`\n✅ Stopped! Duration: ${formatDuration(stopped.duration)}`,
 						);
 					} catch (err) {
-						console.error(`⚠️  Failed to stop timer: ${(err as Error).message}`);
+						const errorMsg = err instanceof Error ? err.message : String(err);
+						console.error(`⚠️  Failed to stop timer: ${errorMsg}`);
 					}
 					resolve();
 				});
@@ -1702,7 +1727,8 @@ program
 						`✅ ${date}: ${timePart.substring(0, 5)}-${endPart.substring(0, 5)}`,
 					);
 				} catch (err) {
-					console.log(`❌ ${date}: ${(err as Error).message}`);
+					const errorMsg = err instanceof Error ? err.message : String(err);
+					console.log(`❌ ${date}: ${errorMsg}`);
 				}
 			}
 		} catch (error) {

@@ -19,6 +19,20 @@ import type {
 } from "./types.js";
 
 /**
+ * Extract detailed errors array from error JSON object
+ */
+function extractDetailedErrors(errorJson: Record<string, unknown>): string[] | undefined {
+	const errors = errorJson.errors;
+	if (errors !== null && typeof errors === "object" && errors !== null) {
+		const errorsObj = errors as Record<string, unknown>;
+		if (Array.isArray(errorsObj.errors)) {
+			return errorsObj.errors.filter((e): e is string => typeof e === "string");
+		}
+	}
+	return undefined;
+}
+
+/**
  * Kimai API client
  * Provides methods for all Kimai v1 API endpoints
  */
@@ -88,21 +102,18 @@ export class KimaiApi {
 		}
 
 		if (!response.ok) {
-			const errorJson = (await response
-				.json()
-				.catch(() => ({ message: response.statusText }))) as Record<
-				string,
-				unknown
-			>;
+			let errorJson: Record<string, unknown> = { message: response.statusText };
+			try {
+				const parsed = await response.json();
+				if (parsed !== null && typeof parsed === "object") {
+					errorJson = parsed as Record<string, unknown>;
+				}
+			} catch {
+				// Use default error message from status text
+			}
 			const errorMessage =
-				(typeof errorJson?.message === "string" && errorJson.message) ||
-				response.statusText;
-			const detailedErrors =
-				errorJson?.errors &&
-				typeof errorJson.errors === "object" &&
-				errorJson.errors !== null
-					? (errorJson.errors as { errors?: string[] }).errors
-					: undefined;
+				typeof errorJson.message === "string" ? errorJson.message : response.statusText;
+			const detailedErrors = extractDetailedErrors(errorJson);
 			const finalMessage =
 				detailedErrors && detailedErrors.length > 0
 					? detailedErrors.join("; ")
@@ -112,10 +123,11 @@ export class KimaiApi {
 
 		// Handle 204 No Content - return null for void responses
 		if (response.status === 204) {
-			return null as unknown as T;
+			return null as T;
 		}
 
-		return response.json() as Promise<T>;
+		const json = await response.json();
+		return json as T;
 	}
 
 	/**
