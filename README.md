@@ -1,16 +1,40 @@
 # st-kimai-cli
 
-CLI tool for Kimai time-tracking API with smart features like pause detection and quick entry.
+CLI tool for Kimai time-tracking API with smart features like pause detection, quick entry, and date range batch operations.
 
 ## Installation
 
+### From npm (global)
+
 ```bash
 npm install -g st-kimai-cli
-# or
-git clone <repo>
+```
+
+### From source
+
+```bash
+git clone https://github.com/steimbyte/st-kimai-cli.git
 cd st-kimai-cli
 npm install
-npm run link
+npm run build
+
+# Link for CLI access (removes need for 'npm run' or PATH hacks)
+ln -s "$(pwd)/dist/index.js" ~/.local/bin/kimai-cli
+chmod +x dist/index.js
+```
+
+> **Note**: Make sure `~/.local/bin` is in your `$PATH`. Add to `~/.bashrc` or `~/.zshrc`:
+> ```bash
+export PATH="$HOME/.local/bin:$PATH"
+> ```
+
+### Via npm link
+
+```bash
+cd st-kimai-cli
+npm install
+npm run build
+npm link
 ```
 
 ## Configuration
@@ -69,9 +93,23 @@ kimai-cli timer -p 5 -a 4 -d "Working"
 
 ```bash
 kimai-cli today        # Today's entries
-kimai-cli week        # This week's entries
+kimai-cli week        # This week's entries (shows KW)
 kimai-cli month       # Current month
 kimai-cli list        # All entries (with filters)
+kimai-cli day [date]  # Day view with gap detection
+```
+
+### Smart Batch Commands
+
+```bash
+# Date range with auto-pause
+kimai-cli range -d 19.05-21.05 -p 5 -a 10 -t "HPE Messe" --hours 9-18 --break 12:30
+
+# Copy template to other dates
+kimai-cli repeat 12345 -d 19.05-21.05
+
+# Day analysis with gap detection
+kimai-cli day 2024-05-21
 ```
 
 ### Other Commands
