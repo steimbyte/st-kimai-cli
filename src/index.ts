@@ -63,7 +63,9 @@ function isValidId(value: unknown): value is number {
 /**
  * Get customer name from project.customer field
  */
-function getCustomerDisplayName(customer: number | { name: string } | null): string {
+function getCustomerDisplayName(
+	customer: number | { name: string } | null,
+): string {
 	if (customer === null) return "-";
 	if (typeof customer === "number") return `#${customer}`;
 	return customer.name;
@@ -664,9 +666,7 @@ program
 			} else {
 				console.log(`Project #${project.id}: ${project.name}`);
 				console.log(divider());
-				console.log(
-				`Customer: ${getCustomerDisplayName(project.customer)}`,
-				);
+				console.log(`Customer: ${getCustomerDisplayName(project.customer)}`);
 				console.log(`Visible: ${project.visible ? "Yes" : "No"}`);
 				console.log(`Billable: ${project.billable ? "Yes" : "No"}`);
 				if (project.start) console.log(`Start: ${project.start}`);

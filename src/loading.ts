@@ -186,9 +186,7 @@ export async function withLoading<T>(
 	} catch (error) {
 		const err = error instanceof Error ? error : new Error(String(error));
 		const failMsg =
-			options?.onFail?.(err) ||
-			options?.failText ||
-			`Failed: ${err.message}`;
+			options?.onFail?.(err) || options?.failText || `Failed: ${err.message}`;
 		spinner.fail(failMsg);
 		throw error;
 	}

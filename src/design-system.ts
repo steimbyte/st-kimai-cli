@@ -39,7 +39,10 @@ export const LAYOUT = {
 } as const;
 
 // Divider function (defined after LAYOUT constants)
-export function divider(char: string = LAYOUT.DIVIDER_CHAR, width: number = LAYOUT.TABLE_WIDTH): string {
+export function divider(
+	char: string = LAYOUT.DIVIDER_CHAR,
+	width: number = LAYOUT.TABLE_WIDTH,
+): string {
 	return char.repeat(width);
 }
 
@@ -54,9 +57,7 @@ const useColor =
 		process.stdout.isTTY &&
 		!process.argv.includes("--no-color"));
 
-function colorize(
-	fn: (s: string) => string,
-): (text: string) => string {
+function colorize(fn: (s: string) => string): (text: string) => string {
 	return useColor ? fn : (s: string) => s;
 }
 
@@ -94,9 +95,9 @@ export const COLORS = {
 	tag: colorize(pc.yellow),
 
 	// Duration colors
-	durationGood: colorize(pc.green),    // 8h+
-	durationOk: colorize(pc.yellow),    // 6-8h
-	durationBad: colorize(pc.red),       // <6h
+	durationGood: colorize(pc.green), // 8h+
+	durationOk: colorize(pc.yellow), // 6-8h
+	durationBad: colorize(pc.red), // <6h
 
 	// Neutral
 	muted: colorize(pc.gray),
@@ -190,7 +191,9 @@ export const ICONS = {
  * Pad a string to a specific length (truncates if too long)
  */
 export function pad(str: string, length: number, char = " "): string {
-	return str.length >= length ? str.substring(0, length) : str.padEnd(length, char);
+	return str.length >= length
+		? str.substring(0, length)
+		: str.padEnd(length, char);
 }
 
 /**
@@ -214,7 +217,10 @@ export function sectionHeader(
 	let output = COLORS.infoBold(`┌${divider("─", width)}┐\n`);
 	output += COLORS.infoBold(`│${padStr} ${title} ${padStr}│\n`);
 	if (options?.subtitle) {
-		const subPad = Math.max(0, Math.floor((width - options.subtitle.length - 4) / 2));
+		const subPad = Math.max(
+			0,
+			Math.floor((width - options.subtitle.length - 4) / 2),
+		);
 		output += `│${COLORS.muted(" ".repeat(subPad))} ${options.subtitle} ${COLORS.muted(" ".repeat(subPad))}│\n`;
 	}
 	output += COLORS.infoBold(`└${divider("─", width)}┘`);

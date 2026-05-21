@@ -21,7 +21,9 @@ import type {
 /**
  * Extract detailed errors array from error JSON object
  */
-function extractDetailedErrors(errorJson: Record<string, unknown>): string[] | undefined {
+function extractDetailedErrors(
+	errorJson: Record<string, unknown>,
+): string[] | undefined {
 	const errors = errorJson.errors;
 	if (errors !== null && typeof errors === "object" && errors !== null) {
 		const errorsObj = errors as Record<string, unknown>;
@@ -112,7 +114,9 @@ export class KimaiApi {
 				// Use default error message from status text
 			}
 			const errorMessage =
-				typeof errorJson.message === "string" ? errorJson.message : response.statusText;
+				typeof errorJson.message === "string"
+					? errorJson.message
+					: response.statusText;
 			const detailedErrors = extractDetailedErrors(errorJson);
 			const finalMessage =
 				detailedErrors && detailedErrors.length > 0

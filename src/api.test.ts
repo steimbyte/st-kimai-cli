@@ -94,7 +94,9 @@ describe("KimaiApi", () => {
 					json: () => Promise.resolve({ message: "Timesheet not found" }),
 				});
 
-				await expect(api.getTimesheets({ project: 99999 })).rejects.toMatchObject({
+				await expect(
+					api.getTimesheets({ project: 99999 }),
+				).rejects.toMatchObject({
 					statusCode: 404,
 				});
 			});
@@ -221,7 +223,11 @@ describe("KimaiApi", () => {
 				});
 
 				try {
-					await api.createTimesheet({ project: 1, activity: 1, begin: "2026-05-21T09:00:00" });
+					await api.createTimesheet({
+						project: 1,
+						activity: 1,
+						begin: "2026-05-21T09:00:00",
+					});
 					throw new Error("Should have thrown");
 				} catch (error) {
 					expect(error).toBeInstanceOf(KimaiApiError);
@@ -244,7 +250,9 @@ describe("KimaiApi", () => {
 					throw new Error("Should have thrown");
 				} catch (error) {
 					expect(error).toBeInstanceOf(KimaiApiError);
-					expect((error as KimaiApiError).message).toBe("Internal Server Error");
+					expect((error as KimaiApiError).message).toBe(
+						"Internal Server Error",
+					);
 				}
 			});
 		});
