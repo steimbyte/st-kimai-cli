@@ -1,6 +1,6 @@
 {
   "name": "st-kimai-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI tool for Kimai time-tracking API",
   "main": "dist/index.js",
   "bin": {
@@ -32,7 +32,9 @@
   },
   "vitest": {
     "test": {
-      "include": ["src/**/*.test.ts"],
+      "include": [
+        "src/**/*.test.ts"
+      ],
       "environment": "node"
     }
   }
