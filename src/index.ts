@@ -27,6 +27,9 @@ import {
 	parseDateRange,
 	parseTimeRange,
 	parseBreak,
+	parseId,
+	sanitizeError,
+	formatError,
 	styledHeader,
 	styledRow,
 	styledSuccess,
@@ -93,13 +96,13 @@ function createApi(): KimaiApi {
 // Helper to handle errors
 function handleError(error: unknown, showHelp = true): never {
 	if (error instanceof KimaiApiError) {
-		console.error(`\n❌ API Error [${error.statusCode}]: ${error.message}`);
+		console.error(`\n❌ API Error ${formatError({ statusCode: error.statusCode, message: error.message })}`);
 		if (showHelp) {
 			showQuickHelp();
 		}
 		process.exit(1);
 	} else if (error instanceof Error) {
-		console.error(`\n❌ Error: ${error.message}`);
+		console.error(`\n❌ Error: ${sanitizeError(error.message)}`);
 		if (showHelp) {
 			showQuickHelp();
 		}

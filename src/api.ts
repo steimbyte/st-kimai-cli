@@ -18,6 +18,19 @@ export class KimaiApi {
 	private headers: Record<string, string>;
 
 	constructor(config: AuthConfig) {
+		// Validate HTTPS requirement for security
+		try {
+			const url = new URL(config.url);
+			if (url.protocol !== "https:") {
+				throw new Error(
+					`KIMAI_URL must use HTTPS. HTTP would expose your API key. ` +
+						`Got: ${config.url}`,
+				);
+			}
+		} catch {
+			// If URL parsing fails, let it fail naturally in request
+		}
+		
 		this.baseUrl = `${config.url}/api`.replace(/\/+$/, "");
 		this.apiKey = config.apiKey;
 		this.headers = {

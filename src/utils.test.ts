@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { formatDuration, parseDate, getEntityId } from "./utils";
+import {
+	formatDuration,
+	parseDate,
+	getEntityId,
+	parseId,
+	parseDateRange,
+	getCalendarWeek,
+	formatDate,
+} from "./utils";
 
 describe("formatDuration", () => {
 	it("should format 0 seconds", () => {
@@ -37,5 +45,48 @@ describe("getEntityId", () => {
 	it("should return null for null/undefined", () => {
 		expect(getEntityId(null)).toBe(null);
 		expect(getEntityId(undefined)).toBe(null);
+	});
+});
+
+describe("parseId", () => {
+	it("should parse valid ID", () => {
+		expect(parseId("42")).toBe(42);
+	});
+	it("should throw on invalid ID", () => {
+		expect(() => parseId("abc")).toThrow();
+		expect(() => parseId("")).toThrow();
+	});
+	it("should throw on negative ID", () => {
+		expect(() => parseId("-5")).toThrow();
+	});
+});
+
+describe("parseDateRange", () => {
+	it("should parse DD.MM-DD.MM format", () => {
+		const dates = parseDateRange("19.05-21.05");
+		expect(dates).toHaveLength(3);
+		expect(dates[0]).toBe("2026-05-18");
+	});
+	it("should reject invalid dates", () => {
+		const dates = parseDateRange("32.05-35.05");
+		expect(dates).toHaveLength(0);
+	});
+	it("should parse comma-separated dates", () => {
+		const dates = parseDateRange("19.05,20.05,21.05");
+		expect(dates).toHaveLength(3);
+	});
+});
+
+describe("getCalendarWeek", () => {
+	it("should return week 21 for May 21 2026", () => {
+		const date = new Date("2026-05-21");
+		expect(getCalendarWeek(date)).toBe(21);
+	});
+});
+
+describe("formatDate", () => {
+	it("should format German date", () => {
+		const result = formatDate("2026-05-21T12:00:00");
+		expect(result).toBe("21.05.2026");
 	});
 });

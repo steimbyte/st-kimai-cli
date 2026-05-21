@@ -1,32 +1,48 @@
 import type { Timesheet, Project, Customer, Activity } from "./types.js";
+import pc from "picocolors";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ANSI COLOR STYLES
+// COLOR STYLES (using picocolors with NO_COLOR support)
 // ═══════════════════════════════════════════════════════════════════════════════
+
+const useColor =
+	!process.env.NO_COLOR &&
+	process.stdout.isTTY &&
+	!process.argv.includes("--no-color");
+
+function c(fn: (s: string) => string): (s: string) => string {
+	return useColor ? fn : (s: string) => s;
+}
 
 export const styles = {
 	// Colors
-	cyan: (text: string) => `\x1b[36m${text}\x1b[0m`,
-	yellow: (text: string) => `\x1b[33m${text}\x1b[0m`,
-	green: (text: string) => `\x1b[32m${text}\x1b[0m`,
-	red: (text: string) => `\x1b[31m${text}\x1b[0m`,
-	magenta: (text: string) => `\x1b[35m${text}\x1b[0m`,
-	blue: (text: string) => `\x1b[34m${text}\x1b[0m`,
-	gray: (text: string) => `\x1b[90m${text}\x1b[0m`,
-	white: (text: string) => `\x1b[97m${text}\x1b[0m`,
+	cyan: c(pc.cyan),
+	yellow: c(pc.yellow),
+	green: c(pc.green),
+	red: c(pc.red),
+	magenta: c(pc.magenta),
+	blue: c(pc.blue),
+	gray: c(pc.gray),
+	white: c(pc.white),
 
 	// Bold
-	bold: (text: string) => `\x1b[1m${text}\x1b[0m`,
-	boldCyan: (text: string) => `\x1b[1m\x1b[36m${text}\x1b[0m`,
-	boldGreen: (text: string) => `\x1b[1m\x1b[32m${text}\x1b[0m`,
-	boldYellow: (text: string) => `\x1b[1m\x1b[33m${text}\x1b[0m`,
+	bold: c(pc.bold),
+	boldCyan: (text: string) =>
+		useColor ? pc.bold(pc.cyan(text)) : text,
+	boldGreen: (text: string) =>
+		useColor ? pc.bold(pc.green(text)) : text,
+	boldYellow: (text: string) =>
+		useColor ? pc.bold(pc.yellow(text)) : text,
 
 	// Backgrounds
-	bgGreen: (text: string) => `\x1b[42m${text}\x1b[0m`,
-	bgYellow: (text: string) => `\x1b[43m${text}\x1b[0m`,
+	bgGreen: c(pc.bgGreen),
+	bgYellow: c(pc.bgYellow),
 
 	// Reset
-	reset: "\x1b[0m",
+	reset: useColor ? pc.reset : "",
+
+	// Utility: color when supported
+	colored: c,
 };
 
 /**
@@ -64,6 +80,57 @@ export function styledRow(
  */
 export function styledDivider(color = styles.gray): string {
 	return color("─".repeat(70));
+}
+
+/**
+ * Parse and validate an ID number
+ */
+export function parseId(value: string, name = "ID"): number {
+	const parsed = parseInt(value, 10);
+	if (isNaN(parsed) || parsed < 0) {
+		throw new Error(`Invalid ${name}: "${value}" is not a valid number`);
+	}
+	return parsed;
+}
+
+/**
+ * Sanitize error message to prevent sensitive info leakage
+ */
+export function sanitizeError(message: string): string {
+	return message
+		.replace(/at\s+[\w.]+\s+\([^)]+\)/g, "[stack trace removed]")
+		.replace(/\/[\w/.-]+\.(ts|js):\d+:\d+/g, "[file location removed]")
+		.substring(0, 500);
+}
+
+/**
+ * Format error with hint for common cases
+ */
+export function formatError(error: { statusCode?: number; message?: string }): string {
+	const parts: string[] = [];
+	
+	if (error.statusCode) {
+		parts.push(`[${error.statusCode}]`);
+	}
+	
+	if (error.message) {
+		parts.push(sanitizeError(error.message));
+	}
+	
+	let hint = "";
+	if (error.statusCode === 401) {
+		hint = "Check your KIMAI_API_KEY in auth.json";
+	} else if (error.statusCode === 403) {
+		hint = "You don't have permission for this action";
+	} else if (error.statusCode === 404) {
+		hint = "The resource was not found";
+	}
+	
+	if (hint) {
+		parts.push(styles.yellow(`Hint: ${hint}`));
+	}
+	
+	return parts.join(" ");
 }
 
 /**
