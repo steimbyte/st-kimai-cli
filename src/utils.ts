@@ -1,5 +1,16 @@
 import type { Timesheet, Project, Customer, Activity } from "./types.js";
 
+/**
+ * Get ISO calendar week number (KW in German)
+ */
+export function getCalendarWeek(date: Date): number {
+	const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+	d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+	const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+	const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+	return weekNo;
+}
+
 export function formatDuration(seconds: number | null): string {
 	if (seconds === null || seconds === 0) return "-";
 

@@ -7,7 +7,6 @@ import type {
 	User,
 	Plugin,
 	Version,
-	ApiError,
 	CreateTimesheetOptions,
 	ListTimesheetsOptions,
 } from "./types.js";
@@ -53,7 +52,16 @@ export class KimaiApi {
 			const error = await response
 				.json()
 				.catch(() => ({ message: response.statusText }));
-			throw new KimaiApiError(response.status, (error as ApiError).message);
+			// Extract detailed error messages from Kimai API
+			const errorData = error as {
+				message?: string;
+				errors?: { errors?: string[] };
+			};
+			let errorMessage = errorData.message || response.statusText;
+			if (errorData.errors?.errors && errorData.errors.errors.length > 0) {
+				errorMessage = errorData.errors.errors.join("; ");
+			}
+			throw new KimaiApiError(response.status, errorMessage);
 		}
 
 		// Handle 204 No Content

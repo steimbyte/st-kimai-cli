@@ -23,6 +23,7 @@ import {
 	getEntityId,
 	checkDayGap,
 	getDatePart,
+	getCalendarWeek,
 } from "./utils.js";
 import type { ListTimesheetsOptions } from "./types.js";
 
@@ -321,7 +322,7 @@ program
 				const dayTimesheets = await api.getTimesheets({
 					begin: `${dayDate}T00:00:00`,
 					end: `${dayDate}T23:59:59`,
-					size: 50,
+					size: 200,
 				});
 				const gapCheck = checkDayGap(dayTimesheets);
 				if (gapCheck.hasGap && gapCheck.gapMinutes) {
@@ -931,8 +932,9 @@ program
 			if (options.json) {
 				console.log(JSON.stringify(timesheets, null, 2));
 			} else {
+				const kw = getCalendarWeek(monday);
 				console.log(
-					`📅 Timesheets for week: ${formatDate(begin)} - ${formatDate(end)}`,
+					`📅 KW ${kw} (${formatDate(begin)} - ${formatDate(end)})`,
 				);
 				console.log("═".repeat(50));
 				printTimesheets(timesheets);
