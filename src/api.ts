@@ -5,6 +5,7 @@ import type {
 	Customer,
 	Activity,
 	User,
+	Team,
 	Plugin,
 	Version,
 	CreateTimesheetOptions,
@@ -197,7 +198,7 @@ export class KimaiApi {
 	}
 
 	// Teams endpoints
-	async getTeams(): Promise<unknown[]> {
+	async getTeams(): Promise<Team[]> {
 		return this.request("/teams");
 	}
 }

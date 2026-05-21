@@ -49,11 +49,24 @@ export function loadAuthConfig(configFile?: string): AuthConfig {
 		const stats = fs.statSync(configPath);
 		const mode = stats.mode & 0o777;
 		if (mode & 0o077) {
+			const permStr = mode.toString(8);
+			// Strict mode: exit with error for insecure permissions
+			if (process.env.KIMAI_STRICT_PERMS === "1") {
+				throw new Error(
+					`SECURITY: Config file has insecure permissions (${permStr}). ` +
+						`API key may be readable by others. Run: chmod 600 ${configPath}`,
+				);
+			}
 			console.error(
-				`⚠️  Warning: Config file has permissive permissions (${mode.toString(8)}). Consider running: chmod 600 ${configPath}`,
+				`⚠️  Warning: Config file has permissive permissions (${permStr}). ` +
+					`Consider running: chmod 600 ${configPath}`,
 			);
 		}
-	} catch {
+	} catch (error) {
+		// Re-throw security errors
+		if (error instanceof Error && error.message.includes("SECURITY")) {
+			throw error;
+		}
 		// Ignore - file might not exist (already handled above)
 	}
 

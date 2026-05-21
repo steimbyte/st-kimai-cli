@@ -210,7 +210,7 @@ export function formatTimesheet(ts: Timesheet): string {
 			? activityName.substring(0, 15) + "..."
 			: activityName.padEnd(18);
 
-	return `${styles.gray(date)} │ ${styles.white(start)}-${styles.white(end)} │ ${durationStr.padEnd(8)} │ ${styles.cyan(projectStr)} │ ${styles.magenta(activityStr)} │ ${description}`;
+	return `${styles.gray(date)} │ ${styles.white(start)}-${styles.white(end)} │ ${durationStr} │ ${styles.cyan(projectStr)} │ ${styles.magenta(activityStr)} │ ${description}`;
 }
 
 export function getProjectName(project: number | Project | null): string {
@@ -458,6 +458,13 @@ export function formatBreakWarning(
 }
 
 /**
+ * Validate day and month are within valid range
+ */
+function isValidDate(day: number, month: number): boolean {
+	return day >= 1 && day <= 31 && month >= 1 && month <= 12;
+}
+
+/**
  * Parse date range like "19.05-21.05" or "19.05-21.05.2026" into array of dates
  */
 export function parseDateRange(rangeStr: string): string[] {
@@ -472,17 +479,39 @@ export function parseDateRange(rangeStr: string): string[] {
 		);
 		if (dotMatch) {
 			const [, sDay, sMonth, eDay, eMonth, year] = dotMatch;
+			const d = parseInt(sDay);
+			const m = parseInt(sMonth);
+			const ed = parseInt(eDay);
+			const em = parseInt(eMonth);
+
+			// Validate dates
+			if (!isValidDate(d, m) || !isValidDate(ed, em)) {
+				console.warn(`⚠️  Ungültiges Datum ignoriert: ${rangeStr}`);
+				return dates;
+			}
+
 			const y = year ? parseInt(year) : currentYear;
 
-			const startDate = new Date(y, parseInt(sMonth) - 1, parseInt(sDay));
-			const endDate = new Date(y, parseInt(eMonth) - 1, parseInt(eDay));
+			// Use proper Date math to handle month boundaries
+			const startDate = new Date(y, m - 1, d);
+			const endDate = new Date(y, em - 1, ed);
+
+			// Validate the dates are correct after construction
+			if (startDate.getDate() !== d || startDate.getMonth() !== m - 1) {
+				console.warn(`⚠️  Ungültiges Startdatum: ${sDay}.${sMonth}`);
+				return dates;
+			}
+			if (endDate.getDate() !== ed || endDate.getMonth() !== em - 1) {
+				console.warn(`⚠️  Ungültiges Enddatum: ${eDay}.${eMonth}`);
+				return dates;
+			}
 
 			for (
-				let d = new Date(startDate);
-				d <= endDate;
-				d.setDate(d.getDate() + 1)
+				let current = new Date(startDate);
+				current <= endDate;
+				current.setDate(current.getDate() + 1)
 			) {
-				dates.push(d.toISOString().split("T")[0]);
+				dates.push(current.toISOString().split("T")[0]);
 			}
 		}
 	} else if (rangeStr.includes(",")) {
@@ -492,9 +521,16 @@ export function parseDateRange(rangeStr: string): string[] {
 			const trimmed = part.trim();
 			if (trimmed.includes(".")) {
 				const [day, month] = trimmed.split(".").map(Number);
-				dates.push(
-					`${currentYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-				);
+				if (!isValidDate(day, month)) {
+					continue;
+				}
+				// Use proper Date constructor to validate
+				const d = new Date(currentYear, month - 1, day);
+				if (d.getDate() === day && d.getMonth() === month - 1) {
+					dates.push(
+						`${currentYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+					);
+				}
 			} else {
 				dates.push(trimmed);
 			}

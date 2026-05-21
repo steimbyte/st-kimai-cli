@@ -1291,15 +1291,12 @@ program
 			console.log(`   "${source.description}"`);
 			console.log("");
 
-			// Create copies
+			// Create copies with proper Date math
 			for (let i = 0; i < options.copyCount; i++) {
 				const offsetDays = (i + 1) * options.days;
-				const sourceDateParts = source.begin
-					.split("T")[0]
-					.split("-")
-					.map(Number);
-				const newDay = sourceDateParts[2] + offsetDays;
-				const newDateStr = `${sourceDateParts[0]}-${String(sourceDateParts[1]).padStart(2, "0")}-${String(newDay).padStart(2, "0")}`;
+				const sourceDate = new Date(source.begin);
+				sourceDate.setDate(sourceDate.getDate() + offsetDays);
+				const newDateStr = sourceDate.toISOString().split("T")[0];
 
 				const newBegin = `${newDateStr}T${timePart}`;
 				const newEnd = `${newDateStr}T${endTimePart}`;
