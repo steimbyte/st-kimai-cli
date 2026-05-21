@@ -1,0 +1,80 @@
+{
+  "files": {
+    "src/api.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 202
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-21T09:47:13.733Z"
+    },
+    "src/utils.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 325
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-21T11:15:40.161Z"
+    },
+    "src/index.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 1377
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-21T11:28:28.883Z"
+    },
+    "src/types.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 140
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-21T09:39:13.945Z"
+    },
+    "src/config.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 63
+        },
+        {
+          "start": 74,
+          "end": 74
+        },
+        {
+          "start": 81,
+          "end": 81
+        },
+        {
+          "start": 83,
+          "end": 85
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-21T09:47:37.491Z"
+    },
+    "src/utils.test.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 48
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-21T09:47:55.797Z"
+    }
+  },
+  "turnCycles": 0,
+  "maxCycles": 3,
+  "lastUpdated": "2026-05-21T11:28:28.883Z",
+  "sessionId": "lens-mpf9q9br-82bcb2dd"
+}
