@@ -77,25 +77,22 @@ function showQuickHelp(errorMsg?: string): void {
 		console.error(`\n❌ ${errorMsg}\n`);
 	}
 	console.error(`
-📖 Quick Reference:
+📖 Quick Reference (One-Liner):
 `);
 	console.error(
-		`  kimai-cli log <text>                  Quick entry (uses last P/A)`,
+		`  kimai-cli -p 5 -a 8 -n "Task" -t 09:00-12:00  Log entry (preferred)`,
 	);
 	console.error(
-		`  kimai-cli quick <text>                Even quicker (auto date)`,
+		`  kimai-cli -p 5 -a 8 -n "Quick"              Log now with note`,
 	);
 	console.error(
-		`  kimai-cli timer                       Start interactive timer`,
+		`  kimai-cli today | week | month                View entries`,
 	);
-	console.error(`  kimai-cli copy <id> [days]            Duplicate entry`);
-	console.error(`  kimai-cli status                      Check API status`);
-	console.error(`  kimai-cli start -p <id> -a <id>      Start timesheet`);
-	console.error(`  kimai-cli add -p <id> -a <id>        Add completed entry`);
-	console.error(`  kimai-cli current                     Show running`);
-	console.error(`  kimai-cli stop                        Stop running`);
-	console.error(`  kimai-cli today | week | month        View timesheets`);
-	console.error(`  kimai-cli --help                      Full help\n`);
+	console.error(
+		`  kimai-cli projects | activities               Find project/activity IDs`,
+	);
+	console.error(`  kimai-cli edit <id> -n "Updated"          Edit entry note`);
+	console.error(`  kimai-cli --help                             Full help\n`);
 }
 
 // Exit override to show help on errors
@@ -142,32 +139,53 @@ function handleError(error: unknown, showHelp = true): never {
 }
 
 // =====================
-// SYSTEM COMMANDS
+// GLOBAL OPTIONS & MAIN PROGRAM
 // =====================
 
 program
 	.name("kimai-cli")
 	.description(`
-Kimai CLI - Time Tracking Made Easy
+Kimai CLI - One-liner time tracking
 
-A powerful CLI tool for managing your Kimai time-tracking entries.
+PREFERRED WAY TO LOG TIME:
+  kimai-cli -p 5 -a 8 -n "Task" -t 09:00-12:00
 
-Quick Start:
-  kimai-cli status                    Check API connection
-  kimai-cli quick "My task"          Quick time entry
-  kimai-cli today                     View today's entries
+Required:
+  -p <id>    Project ID      (use 'kimai-cli projects' to find)
+  -a <id>    Activity ID     (use 'kimai-cli activities' to find)
 
-Common Tasks:
-  kimai-cli start -p 5 -a 8          Start timer for project/activity
-  kimai-cli edit 123 -n "Updated"    Edit entry note
-  kimai-cli timer                     Interactive timer mode
+Optional:
+  -n <text>  Note/description
+  -d <date>  Date (YYYY-MM-DD or DD.MM.YYYY)
+  -t <range> Time range (09:00-12:00 or 09:00+2h)
+  -b <HH:MM> Start time
+  -e <HH:MM> End time
+  -g <tags>  Tags
 
-Examples:
-  kimai-cli add -p 5 -a 8 -d "Coding" -b "09:00" -e "12:00"
-  kimai-cli copy 123 1                Copy entry to tomorrow
-  kimai-cli search "meeting"           Find entries by keyword
+Quick Examples:
+  kimai-cli -p 5 -a 8 -n "Coding"           Log now with note
+  kimai-cli -p 5 -a 8 -n "Meeting" -t 09:00-10:30  With time
+  kimai-cli -p 5 -a 8 -n "Work" -d 22.05 -t 09:00+4h  Specific day
+
+Other Commands:
+  kimai-cli today|week|month              View entries
+  kimai-cli start|stop                   Timer control
+  kimai-cli edit <id>                    Edit entry
+  kimai-cli projects|activities          List IDs
 `)
-	.option("-c, --config <path>", "Path to auth.json config file");
+	.option("-c, --config <path>", "Path to auth.json config file")
+	.option("-p, --project <id>", "Project ID (use with -a to create entry)", (v) => parseInt(v, 10))
+	.option("-a, --activity <id>", "Activity ID (use with -p to create entry)", (v) => parseInt(v, 10))
+	.option("-n, --note <text>", "Note/description")
+	.option("-d, --date <date>", "Date (YYYY-MM-DD or DD.MM.YYYY)")
+	.option("-t, --time <range>", "Time range (09:00-12:00 or 09:00+2h)")
+	.option("-b, --begin <time>", "Start time (HH:MM)")
+	.option("-e, --end <time>", "End time (HH:MM)")
+	.option("-g, --tags <tags>", "Tags");
+
+// =====================
+// SYSTEM COMMANDS
+// =====================
 
 // Status command
 program
@@ -214,7 +232,9 @@ program
 program
 	.command("list")
 	.alias("ls")
-	.description("List timesheets with optional filters (project, activity, date range)")
+	.description(
+		"List timesheets with optional filters (project, activity, date range)",
+	)
 	.option("-p, --project <id>", "Filter by project ID", (v) => parseInt(v, 10))
 	.option("-a, --activity <id>", "Filter by activity ID", (v) =>
 		parseInt(v, 10),
@@ -366,8 +386,14 @@ program
 	.requiredOption("-p, --project <id>", "Project ID", (v) => parseInt(v, 10))
 	.requiredOption("-a, --activity <id>", "Activity ID", (v) => parseInt(v, 10))
 	.option("-n, --note <text>", "Note/description for the entry")
-	.option("-d, --date <date>", "Date in YYYY-MM-DD or DD.MM.YYYY format (default: today)")
-	.option("-t, --time <range>", "Time range like 09:00-12:00 or 09:00+3h (3 hours from start)")
+	.option(
+		"-d, --date <date>",
+		"Date in YYYY-MM-DD or DD.MM.YYYY format (default: today)",
+	)
+	.option(
+		"-t, --time <range>",
+		"Time range like 09:00-12:00 or 09:00+3h (3 hours from start)",
+	)
 	.option("-b, --begin <time>", "Start time (HH:MM format)")
 	.option("-e, --end <time>", "End time (HH:MM format)")
 	.option("-g, --tags <tags>", "Comma-separated tags")
@@ -379,10 +405,10 @@ program
 			// Parse date (default: today)
 			const today = new Date().toISOString().split("T")[0];
 			const dateStr = options.date
-				? (options.date.includes(".")
-						? options.date.split(".").reverse().join("-")
-						: options.date)
-					: today;
+				? options.date.includes(".")
+					? options.date.split(".").reverse().join("-")
+					: options.date
+				: today;
 
 			// Parse time range
 			let beginTime = options.begin;
@@ -405,9 +431,7 @@ program
 			}
 
 			// Build ISO datetime strings
-			const beginIso = beginTime
-				? `${dateStr}T${beginTime}:00`
-				: nowIso();
+			const beginIso = beginTime ? `${dateStr}T${beginTime}:00` : nowIso();
 			const endIso = endTime ? `${dateStr}T${endTime}:00` : undefined;
 
 			const tags = options.tags
@@ -1790,5 +1814,77 @@ program
 			handleError(error);
 		}
 	});
+
+// Handle global options for one-liner entry
+program.action((_options, command) => {
+	const opts = command.opts();
+	// If -p and -a are provided, treat as add command
+	if (opts.project && opts.activity) {
+		const loading = createLoading();
+		const api = createApi();
+
+		// Validate IDs
+		const projectId = parseId(opts.project, "Project ID");
+		const activityId = parseId(opts.activity, "Activity ID");
+
+		const dateStr = opts.date
+			? (opts.date.includes(".")
+					? opts.date.split(".").reverse().join("-")
+					: opts.date)
+				: new Date().toISOString().split("T")[0];
+
+		let beginTime = opts.begin;
+		let endTime = opts.end;
+
+		if (opts.time) {
+			if (opts.time.includes("-")) {
+				[beginTime, endTime] = opts.time.split("-");
+			} else if (opts.time.includes("+")) {
+				const match = opts.time.match(/^(\d{2}:\d{2})\+(\d+)h$/);
+				if (match) {
+					beginTime = match[1];
+					const hours = parseInt(match[2], 10);
+					const [h, m] = beginTime.split(":").map(Number);
+					const endH = h + hours;
+					endTime = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+				}
+			}
+		}
+
+		const beginIso = beginTime
+			? `${dateStr}T${beginTime}:00`
+			: nowIso();
+		const endIso = endTime ? `${dateStr}T${endTime}:00` : undefined;
+
+		const tags = opts.tags ? opts.tags.split(",").map((t: string) => t.trim()) : undefined;
+
+		loading.start("Creating timesheet...");
+		api.createTimesheet({
+			project: projectId,
+			activity: activityId,
+			description: opts.note,
+			begin: beginIso,
+			end: endIso,
+			tags,
+		})
+			.then((ts) => {
+				loading.succeed("Timesheet created");
+				console.log(styledSuccess(`✅ Timesheet #${ts.id} created`));
+				console.log(`   Project: ${getProjectName(ts.project)}`);
+				console.log(`   Activity: ${getActivityName(ts.activity)}`);
+				if (ts.description) console.log(`   Note: ${ts.description}`);
+				console.log(`   Time: ${formatTime(ts.begin)} - ${formatTime(ts.end)}`);
+				console.log(`   Duration: ${colorizeDuration(ts.duration)}`);
+			})
+			.catch((err) => {
+				loading.fail("Failed to create timesheet");
+				console.error(`❌ ${err.message}`);
+				process.exit(1);
+			});
+	} else {
+		// Show help if no command and no global entry options
+		command.help();
+	}
+});
 
 program.parse();
