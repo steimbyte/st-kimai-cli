@@ -553,8 +553,8 @@ program
 // Edit timesheet (PATCH)
 program
 	.command("edit <id>")
-	.description("Edit a timesheet (update description, project, activity, etc.)")
-	.option("-d, --description <text>", "New description")
+	.description("Edit a timesheet (update note, project, activity, etc.)")
+	.option("-n, --note <text>", "Note/description")
 	.option("-p, --project <id>", "New project ID", (v) => parseInt(v, 10))
 	.option("-a, --activity <id>", "New activity ID", (v) => parseInt(v, 10))
 	.option("-b, --begin <datetime>", "New start time")
@@ -577,8 +577,7 @@ program
 
 			// Build update object
 			const updates: Record<string, unknown> = {};
-			if (options.description !== undefined)
-				updates.description = options.description;
+			if (options.note !== undefined) updates.description = options.note;
 			if (options.project !== undefined) updates.project = options.project;
 			if (options.activity !== undefined) updates.activity = options.activity;
 			if (options.begin !== undefined) updates.begin = options.begin;
@@ -586,7 +585,7 @@ program
 
 			if (Object.keys(updates).length === 0) {
 				console.log(
-					"No updates specified. Use --description, --project, --activity, etc.",
+					"No updates specified. Use --note, --project, --activity, etc.",
 				);
 				return;
 			}
@@ -597,7 +596,7 @@ program
 			console.log(`✅ Timesheet #${id} updated`);
 			console.log(`   Project: ${getProjectName(updated.project)}`);
 			console.log(`   Activity: ${getActivityName(updated.activity)}`);
-			console.log(`   Description: ${updated.description || "-"}`);
+			console.log(`   Note: ${updated.description || "-"}`);
 			console.log(`   Duration: ${formatDuration(updated.duration)}`);
 		} catch (error) {
 			loading.fail("Failed to update timesheet");

@@ -31,7 +31,10 @@ describe("KimaiApi", () => {
 		});
 
 		it("should use Bearer token for Authorization header", () => {
-			const testConfig = { url: "https://kimai.example.com", apiKey: "my-secret-key" };
+			const testConfig = {
+				url: "https://kimai.example.com",
+				apiKey: "my-secret-key",
+			};
 			const testApi = new KimaiApi(testConfig);
 			// Access private headers through any cast for testing
 			const apiAny = testApi as unknown as { headers: Record<string, string> };
