@@ -29,7 +29,6 @@ import {
 	parseBreak,
 	parseId,
 	sanitizeError,
-	formatError,
 	styledHeader,
 	styledRow,
 	styledSuccess,
@@ -85,9 +84,7 @@ function showQuickHelp(errorMsg?: string): void {
 	console.error(
 		`  kimai-cli -p 5 -a 8 -n "Quick"              Log now with note`,
 	);
-	console.error(
-		`  kimai-cli today | week | month                View entries`,
-	);
+	console.error(`  kimai-cli today | week | month                View entries`);
 	console.error(
 		`  kimai-cli projects | activities               Find project/activity IDs`,
 	);
@@ -117,12 +114,30 @@ function createApi(): KimaiApi {
 	return new KimaiApi(config);
 }
 
-// Helper to handle errors
+// Helper to handle errors with helpful hints
 function handleError(error: unknown, showHelp = true): never {
 	if (error instanceof KimaiApiError) {
-		console.error(
-			`\n❌ API Error ${formatError({ statusCode: error.statusCode, message: error.message })}`,
-		);
+		const statusCode = error.statusCode;
+		const message = error.message;
+
+		console.error(`\n❌ API Error [${statusCode}] ${message}`);
+
+		// Provide helpful hints based on error type
+		if (statusCode === 400) {
+			if (message.includes("already have an entry")) {
+				console.error("\nHint: Time overlaps with another entry.");
+				console.error("Tip: Use 'kimai-cli today' to see existing entries and their times.");
+				console.error("Tip: Use -t 09:00-12:00 to set non-overlapping times.");
+			} else if (message.includes("Validation")) {
+				console.error("\nHint: Check date/time format. Use ISO format: YYYY-MM-DDTHH:MM:SS");
+			}
+		} else if (statusCode === 401 || statusCode === 403) {
+			console.error("\nHint: Check your API key in auth.json or KIMAI_API_KEY env var.");
+			console.error("Tip: Run 'chmod 600 ~/.kimai-cli/auth.json' for secure permissions.");
+		} else if (statusCode === 404) {
+			console.error("\nHint: Use 'kimai-cli today' to find the correct entry ID.");
+		}
+
 		if (showHelp) {
 			showQuickHelp();
 		}
@@ -174,8 +189,16 @@ Other Commands:
   kimai-cli projects|activities          List IDs
 `)
 	.option("-c, --config <path>", "Path to auth.json config file")
-	.option("-p, --project <id>", "Project ID (use with -a to create entry)", (v) => parseInt(v, 10))
-	.option("-a, --activity <id>", "Activity ID (use with -p to create entry)", (v) => parseInt(v, 10))
+	.option(
+		"-p, --project <id>",
+		"Project ID (use with -a to create entry)",
+		(v) => parseInt(v, 10),
+	)
+	.option(
+		"-a, --activity <id>",
+		"Activity ID (use with -p to create entry)",
+		(v) => parseInt(v, 10),
+	)
 	.option("-n, --note <text>", "Note/description")
 	.option("-d, --date <date>", "Date (YYYY-MM-DD or DD.MM.YYYY)")
 	.option("-t, --time <range>", "Time range (09:00-12:00 or 09:00+2h)")
@@ -632,12 +655,13 @@ program
 // Edit timesheet (PATCH)
 program
 	.command("edit <id>")
-	.description("Edit a timesheet (update note, project, activity, etc.)")
+	.description("Edit a timesheet: note, time, project, activity")
 	.option("-n, --note <text>", "Note/description")
 	.option("-p, --project <id>", "New project ID", (v) => parseInt(v, 10))
 	.option("-a, --activity <id>", "New activity ID", (v) => parseInt(v, 10))
-	.option("-b, --begin <datetime>", "New start time")
-	.option("-e, --end <datetime>", "New end time")
+	.option("-m, --time <range>", "Time range (09:00-12:00)")
+	.option("-b, --begin <datetime>", "New start time (HH:MM)")
+	.option("-e, --end <datetime>", "New end time (HH:MM)")
 	.action(async (id: string, options) => {
 		const loading = createLoading();
 		try {
@@ -651,21 +675,50 @@ program
 
 			if (!current) {
 				console.error(`Timesheet #${id} not found`);
+				console.error("\nHint: Use 'kimai-cli today' to see all entry IDs");
 				process.exit(1);
 			}
+
+			// Extract date from current entry for time parsing
+			const entryDate = current.begin.split("T")[0];
 
 			// Build update object
 			const updates: Record<string, unknown> = {};
 			if (options.note !== undefined) updates.description = options.note;
 			if (options.project !== undefined) updates.project = options.project;
 			if (options.activity !== undefined) updates.activity = options.activity;
-			if (options.begin !== undefined) updates.begin = options.begin;
-			if (options.end !== undefined) updates.end = options.end;
+
+			// Parse time range (-t flag)
+			if (options.time) {
+				if (options.time.includes("-")) {
+					const [beginStr, endStr] = options.time.split("-");
+					if (beginStr && endStr) {
+						updates.begin = `${entryDate}T${beginStr}:00`;
+						updates.end = `${entryDate}T${endStr}:00`;
+					}
+				}
+			}
+
+			// Parse individual times (-b and -e)
+			if (options.begin !== undefined) {
+				// Check if it's just HH:MM or full ISO
+				if (options.begin.includes(":") && !options.begin.includes("T")) {
+					updates.begin = `${entryDate}T${options.begin}:00`;
+				} else {
+					updates.begin = options.begin;
+				}
+			}
+			if (options.end !== undefined) {
+				if (options.end.includes(":") && !options.end.includes("T")) {
+					updates.end = `${entryDate}T${options.end}:00`;
+				} else {
+					updates.end = options.end;
+				}
+			}
 
 			if (Object.keys(updates).length === 0) {
-				console.log(
-					"No updates specified. Use --note, --project, --activity, etc.",
-				);
+				console.log("No updates specified. Use: -n, -m, -b, -e, -p, -a");
+				console.log("\nExample: kimai-cli edit 123 -m 09:00-12:00 -n 'Updated note'");
 				return;
 			}
 
@@ -676,9 +729,15 @@ program
 			console.log(`   Project: ${getProjectName(updated.project)}`);
 			console.log(`   Activity: ${getActivityName(updated.activity)}`);
 			console.log(`   Note: ${updated.description || "-"}`);
+			console.log(`   Time: ${formatTime(updated.begin)} - ${formatTime(updated.end)}`);
 			console.log(`   Duration: ${formatDuration(updated.duration)}`);
 		} catch (error) {
 			loading.fail("Failed to update timesheet");
+			// Better error messages
+			if (error instanceof Error && error.message.includes("already have an entry")) {
+				console.error("\nHint: Time overlaps with another entry. Use -t to set different times.");
+				console.error("Hint: Or use 'kimai-cli today' to see existing entries.");
+			}
 			handleError(error);
 		}
 	});
@@ -1828,10 +1887,10 @@ program.action((_options, command) => {
 		const activityId = parseId(opts.activity, "Activity ID");
 
 		const dateStr = opts.date
-			? (opts.date.includes(".")
-					? opts.date.split(".").reverse().join("-")
-					: opts.date)
-				: new Date().toISOString().split("T")[0];
+			? opts.date.includes(".")
+				? opts.date.split(".").reverse().join("-")
+				: opts.date
+			: new Date().toISOString().split("T")[0];
 
 		let beginTime = opts.begin;
 		let endTime = opts.end;
@@ -1851,22 +1910,23 @@ program.action((_options, command) => {
 			}
 		}
 
-		const beginIso = beginTime
-			? `${dateStr}T${beginTime}:00`
-			: nowIso();
+		const beginIso = beginTime ? `${dateStr}T${beginTime}:00` : nowIso();
 		const endIso = endTime ? `${dateStr}T${endTime}:00` : undefined;
 
-		const tags = opts.tags ? opts.tags.split(",").map((t: string) => t.trim()) : undefined;
+		const tags = opts.tags
+			? opts.tags.split(",").map((t: string) => t.trim())
+			: undefined;
 
 		loading.start("Creating timesheet...");
-		api.createTimesheet({
-			project: projectId,
-			activity: activityId,
-			description: opts.note,
-			begin: beginIso,
-			end: endIso,
-			tags,
-		})
+		api
+			.createTimesheet({
+				project: projectId,
+				activity: activityId,
+				description: opts.note,
+				begin: beginIso,
+				end: endIso,
+				tags,
+			})
 			.then((ts) => {
 				loading.succeed("Timesheet created");
 				console.log(styledSuccess(`✅ Timesheet #${ts.id} created`));
