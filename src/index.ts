@@ -147,13 +147,32 @@ function handleError(error: unknown, showHelp = true): never {
 
 program
 	.name("kimai-cli")
-	.description("CLI tool for Kimai time-tracking API")
+	.description(`
+Kimai CLI - Time Tracking Made Easy
+
+A powerful CLI tool for managing your Kimai time-tracking entries.
+
+Quick Start:
+  kimai-cli status                    Check API connection
+  kimai-cli quick "My task"          Quick time entry
+  kimai-cli today                     View today's entries
+
+Common Tasks:
+  kimai-cli start -p 5 -a 8          Start timer for project/activity
+  kimai-cli edit 123 -n "Updated"    Edit entry note
+  kimai-cli timer                     Interactive timer mode
+
+Examples:
+  kimai-cli add -p 5 -a 8 -d "Coding" -b "09:00" -e "12:00"
+  kimai-cli copy 123 1                Copy entry to tomorrow
+  kimai-cli search "meeting"           Find entries by keyword
+`)
 	.option("-c, --config <path>", "Path to auth.json config file");
 
 // Status command
 program
 	.command("status")
-	.description("Show API status (ping, version, plugins)")
+	.description("Check API connection and show server info (version, plugins)")
 	.action(async () => {
 		const loading = createLoading();
 		try {
@@ -195,7 +214,7 @@ program
 program
 	.command("list")
 	.alias("ls")
-	.description("List timesheets")
+	.description("List timesheets with optional filters (project, activity, date range)")
 	.option("-p, --project <id>", "Filter by project ID", (v) => parseInt(v, 10))
 	.option("-a, --activity <id>", "Filter by activity ID", (v) =>
 		parseInt(v, 10),
@@ -343,17 +362,53 @@ program
 // Add timesheet (with end time - fixed duration)
 program
 	.command("add")
-	.description("Add a completed timesheet entry")
+	.description("Add a completed timesheet entry with all options in one line")
 	.requiredOption("-p, --project <id>", "Project ID", (v) => parseInt(v, 10))
 	.requiredOption("-a, --activity <id>", "Activity ID", (v) => parseInt(v, 10))
-	.option("-d, --description <text>", "Description")
-	.option("-b, --begin <datetime>", "Start time (ISO format)")
-	.option("-e, --end <datetime>", "End time (ISO format)")
-	.option("-t, --tags <tags>", "Comma-separated tags")
+	.option("-n, --note <text>", "Note/description for the entry")
+	.option("-d, --date <date>", "Date in YYYY-MM-DD or DD.MM.YYYY format (default: today)")
+	.option("-t, --time <range>", "Time range like 09:00-12:00 or 09:00+3h (3 hours from start)")
+	.option("-b, --begin <time>", "Start time (HH:MM format)")
+	.option("-e, --end <time>", "End time (HH:MM format)")
+	.option("-g, --tags <tags>", "Comma-separated tags")
 	.action(async (options) => {
 		const loading = createLoading();
 		try {
 			const api = createApi();
+
+			// Parse date (default: today)
+			const today = new Date().toISOString().split("T")[0];
+			const dateStr = options.date
+				? (options.date.includes(".")
+						? options.date.split(".").reverse().join("-")
+						: options.date)
+					: today;
+
+			// Parse time range
+			let beginTime = options.begin;
+			let endTime = options.end;
+
+			if (options.time) {
+				// Format: 09:00-12:00 or 09:00+3h
+				if (options.time.includes("-")) {
+					[beginTime, endTime] = options.time.split("-");
+				} else if (options.time.includes("+")) {
+					const match = options.time.match(/^(\d{2}:\d{2})\+(\d+)h$/);
+					if (match) {
+						beginTime = match[1];
+						const hours = parseInt(match[2], 10);
+						const [h, m] = beginTime.split(":").map(Number);
+						const endH = h + hours;
+						endTime = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+					}
+				}
+			}
+
+			// Build ISO datetime strings
+			const beginIso = beginTime
+				? `${dateStr}T${beginTime}:00`
+				: nowIso();
+			const endIso = endTime ? `${dateStr}T${endTime}:00` : undefined;
 
 			const tags = options.tags
 				? options.tags.split(",").map((t: string) => t.trim())
@@ -363,34 +418,34 @@ program
 				api.createTimesheet({
 					project: options.project,
 					activity: options.activity,
-					description: options.description,
-					begin: options.begin || nowIso(),
-					end: options.end,
+					description: options.note,
+					begin: beginIso,
+					end: endIso,
 					tags,
 				}),
 			);
 
-			console.log(styledSuccess(`Timesheet #${timesheet.id} erstellt`));
+			console.log(styledSuccess(`Timesheet #${timesheet.id} created`));
 			console.log(
-				styledRow("Projekt:", getProjectName(timesheet.project), styles.cyan),
+				styledRow("Project:", getProjectName(timesheet.project), styles.cyan),
 			);
 			console.log(
 				styledRow(
-					"Aktivität:",
+					"Activity:",
 					getActivityName(timesheet.activity),
 					styles.magenta,
 				),
 			);
 			if (timesheet.description) {
-				console.log(styledRow("Beschreibung:", timesheet.description));
+				console.log(styledRow("Note:", timesheet.description));
 			}
 			console.log(
 				styledRow(
-					"Zeit:",
+					"Time:",
 					`${formatTime(timesheet.begin)} - ${formatTime(timesheet.end)}`,
 				),
 			);
-			console.log(styledRow("Dauer:", colorizeDuration(timesheet.duration)));
+			console.log(styledRow("Duration:", colorizeDuration(timesheet.duration)));
 
 			// Check for gaps in the day
 			const dayDate = getDatePart(timesheet.begin);
